@@ -1,6 +1,7 @@
+
 import React, { useState } from 'react';
 import { generateStudyAid } from '../services/geminiService';
-import { Brain, Sparkles, BookOpen, ScrollText, Loader2, Save } from 'lucide-react';
+import { Sparkles, BookOpen, ScrollText, Loader2, Target } from 'lucide-react';
 
 interface AIStudioProps {
   currentTitle: string;
@@ -23,24 +24,22 @@ export const AIStudio: React.FC<AIStudioProps> = ({ currentTitle, notes, onNotes
   };
 
   return (
-    <div className="h-full flex flex-col glass-panel rounded-3xl overflow-hidden shadow-2xl border border-white/5">
-      <div className="p-5 border-b border-white/5 bg-white/[0.02] flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <div className="p-1.5 bg-indigo-500/10 rounded-lg">
-            <Brain size={18} className="text-indigo-400" />
-          </div>
-          <h2 className="font-bold text-white tracking-tight">AI Synthesis</h2>
+    <div className="h-full flex flex-col glass-panel rounded-2xl overflow-hidden shadow-2xl border border-white/5">
+      <div className="p-4 border-b border-white/5 bg-white/[0.02] flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Target size={18} className="text-primary" />
+          <h2 className="font-bold text-white tracking-tight text-sm">AI Synthesis</h2>
         </div>
-        <div className="flex bg-black/40 rounded-xl p-1 border border-white/5">
+        <div className="flex bg-black/40 rounded-lg p-0.5 border border-white/5">
           <button 
             onClick={() => setActiveTab('notes')}
-            className={`px-4 py-1.5 text-[11px] font-bold uppercase tracking-wider rounded-lg transition-all ${activeTab === 'notes' ? 'bg-zinc-700 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+            className={`px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${activeTab === 'notes' ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
           >
             Draft
           </button>
           <button 
             onClick={() => setActiveTab('ai')}
-            className={`px-4 py-1.5 text-[11px] font-bold uppercase tracking-wider rounded-lg transition-all ${activeTab === 'ai' ? 'bg-indigo-600/50 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+            className={`px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${activeTab === 'ai' ? 'bg-primary/20 text-primary' : 'text-zinc-500 hover:text-zinc-300'}`}
           >
             Insights
           </button>
@@ -51,13 +50,13 @@ export const AIStudio: React.FC<AIStudioProps> = ({ currentTitle, notes, onNotes
         {activeTab === 'notes' ? (
           <div className="flex-1 relative">
             <textarea
-              className="w-full h-full bg-transparent p-6 text-sm text-zinc-300 focus:outline-none resize-none font-sans leading-relaxed placeholder:text-zinc-700"
+              className="w-full h-full bg-transparent p-6 text-sm text-zinc-300 focus:outline-none resize-none font-sans leading-relaxed placeholder:text-zinc-600"
               placeholder="Take notes here as you watch. Use keywords and timestamps..."
               value={notes}
               onChange={(e) => onNotesChange(e.target.value)}
             />
-            <div className="absolute bottom-4 right-4 text-[10px] text-zinc-600 flex items-center gap-1">
-               <Save size={10} /> Auto-saving to local storage
+            <div className="absolute bottom-4 right-4 text-[9px] text-zinc-600 font-bold uppercase tracking-widest flex items-center gap-1">
+               <Sparkles size={10} /> Auto-saving to local storage
             </div>
           </div>
         ) : (
@@ -65,7 +64,7 @@ export const AIStudio: React.FC<AIStudioProps> = ({ currentTitle, notes, onNotes
             {loading ? (
               <div className="flex flex-col items-center justify-center h-full text-zinc-500 gap-4">
                 <Loader2 className="animate-spin text-primary" size={40} />
-                <span className="text-[11px] font-bold uppercase tracking-[0.2em] animate-pulse">Gemini analyzing session...</span>
+                <span className="text-[10px] font-bold uppercase tracking-[0.2em] animate-pulse">Analyzing Session...</span>
               </div>
             ) : aiOutput ? (
               <div className="prose prose-invert max-w-none">
@@ -74,10 +73,10 @@ export const AIStudio: React.FC<AIStudioProps> = ({ currentTitle, notes, onNotes
                  </pre>
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center h-full text-zinc-600 text-center px-10">
-                <Sparkles size={32} className="mb-4 opacity-20" />
-                <p className="text-xs font-medium uppercase tracking-widest leading-loose">
-                  Select a synthesizer tool below to process your session
+              <div className="flex flex-col items-center justify-center h-full text-zinc-700 text-center px-10">
+                <Sparkles size={32} className="mb-4 opacity-10" />
+                <p className="text-[10px] font-bold uppercase tracking-widest leading-loose">
+                  Select a synthesizer below
                 </p>
               </div>
             )}
@@ -85,30 +84,30 @@ export const AIStudio: React.FC<AIStudioProps> = ({ currentTitle, notes, onNotes
         )}
       </div>
 
-      <div className="p-5 border-t border-white/5 bg-white/[0.02] grid grid-cols-3 gap-3">
+      <div className="p-4 border-t border-white/5 bg-white/[0.02] grid grid-cols-3 gap-3">
         <button 
           onClick={() => handleGenerate('plan')}
-          disabled={!currentTitle || loading}
-          className="flex flex-col items-center justify-center gap-2 p-3.5 rounded-2xl bg-zinc-900/50 hover:bg-zinc-800 disabled:opacity-30 transition-all border border-white/5 hover:border-primary/50 group"
+          disabled={loading}
+          className="flex flex-col items-center justify-center gap-2 p-3 rounded-xl bg-zinc-900/50 hover:bg-zinc-800 disabled:opacity-30 border border-white/5 group transition-all"
         >
-          <BookOpen size={18} className="text-emerald-400 group-hover:scale-110 transition-transform" />
-          <span className="text-[9px] uppercase font-bold tracking-[0.15em] text-zinc-500">Plan</span>
+          <BookOpen size={18} className="text-emerald-500 group-hover:scale-110" />
+          <span className="text-[9px] uppercase font-bold tracking-widest text-zinc-500">Plan</span>
         </button>
         <button 
           onClick={() => handleGenerate('quiz')}
-          disabled={!currentTitle || loading}
-          className="flex flex-col items-center justify-center gap-2 p-3.5 rounded-2xl bg-zinc-900/50 hover:bg-zinc-800 disabled:opacity-30 transition-all border border-white/5 hover:border-accent/50 group"
+          disabled={loading}
+          className="flex flex-col items-center justify-center gap-2 p-3 rounded-xl bg-zinc-900/50 hover:bg-zinc-800 disabled:opacity-30 border border-white/5 group transition-all"
         >
-          <Sparkles size={18} className="text-amber-400 group-hover:scale-110 transition-transform" />
-          <span className="text-[9px] uppercase font-bold tracking-[0.15em] text-zinc-500">Quiz</span>
+          <Sparkles size={18} className="text-amber-500 group-hover:scale-110" />
+          <span className="text-[9px] uppercase font-bold tracking-widest text-zinc-500">Quiz</span>
         </button>
         <button 
           onClick={() => handleGenerate('summary')}
-          disabled={!currentTitle || loading}
-          className="flex flex-col items-center justify-center gap-2 p-3.5 rounded-2xl bg-zinc-900/50 hover:bg-zinc-800 disabled:opacity-30 transition-all border border-white/5 hover:border-indigo-400/50 group"
+          disabled={loading}
+          className="flex flex-col items-center justify-center gap-2 p-3 rounded-xl bg-zinc-900/50 hover:bg-zinc-800 disabled:opacity-30 border border-white/5 group transition-all"
         >
-          <ScrollText size={18} className="text-blue-400 group-hover:scale-110 transition-transform" />
-          <span className="text-[9px] uppercase font-bold tracking-[0.15em] text-zinc-500">Refine</span>
+          <ScrollText size={18} className="text-blue-500 group-hover:scale-110" />
+          <span className="text-[9px] uppercase font-bold tracking-widest text-zinc-500">Refine</span>
         </button>
       </div>
     </div>

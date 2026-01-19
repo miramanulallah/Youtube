@@ -1,6 +1,7 @@
+
 import React, { useState } from 'react';
 import { VideoHistoryItem } from '../types';
-import { PlayCircle, Trash2, Download, Upload, FileJson, Pencil, Check, X } from 'lucide-react';
+import { PlayCircle, Trash2, Download, Upload, FileJson, Pencil, Check, X, User } from 'lucide-react';
 
 interface HistoryPanelProps {
   history: VideoHistoryItem[];
@@ -42,42 +43,42 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({
   };
 
   return (
-    <div className="h-full flex flex-col glass-panel rounded-xl overflow-hidden">
+    <div className="h-full flex flex-col glass-panel rounded-xl overflow-hidden border border-white/5">
       <div className="p-4 border-b border-white/10 flex justify-between items-center bg-white/5">
-        <h2 className="text-lg font-semibold text-white">Watch History</h2>
-        <div className="flex gap-2">
+        <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-400">Watch History</h2>
+        <div className="flex gap-1">
           <button 
             onClick={onExport} 
             title="Export History"
-            className="p-2 hover:bg-white/10 rounded-lg text-emerald-400 transition-colors"
+            className="p-1.5 hover:bg-white/10 rounded-md text-zinc-500 hover:text-emerald-400 transition-colors"
           >
-            <Download size={18} />
+            <Download size={16} />
           </button>
           <label 
             title="Import History"
-            className="p-2 hover:bg-white/10 rounded-lg text-blue-400 cursor-pointer transition-colors"
+            className="p-1.5 hover:bg-white/10 rounded-md text-zinc-500 hover:text-blue-400 cursor-pointer transition-colors"
           >
-            <Upload size={18} />
+            <Upload size={16} />
             <input type="file" accept=".json" onChange={onImport} className="hidden" />
           </label>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {history.length === 0 ? (
-          <div className="text-center text-zinc-500 mt-10">
-            <FileJson className="mx-auto mb-2 opacity-50" size={32} />
-            <p className="text-sm">No history yet.</p>
+          <div className="text-center text-zinc-700 mt-10">
+            <FileJson className="mx-auto mb-3 opacity-20" size={40} />
+            <p className="text-xs font-medium uppercase tracking-widest">No history yet.</p>
           </div>
         ) : (
           history.map((item) => (
             <div 
               key={item.id} 
-              className={`group relative bg-zinc-900/50 hover:bg-zinc-800 border transition-all cursor-pointer rounded-lg p-3 ${editingId === item.id ? 'border-primary ring-1 ring-primary/20 bg-zinc-800' : 'border-white/5 hover:border-primary/30'}`}
+              className={`group relative bg-white/[0.02] hover:bg-white/[0.05] border transition-all cursor-pointer rounded-xl p-4 ${editingId === item.id ? 'border-primary ring-1 ring-primary/20 bg-zinc-800' : 'border-white/5'}`}
             >
               <div onClick={() => editingId !== item.id && onSelect(item)} className="flex items-start gap-3">
-                <div className="mt-1 text-primary shrink-0">
-                  <PlayCircle size={16} />
+                <div className="mt-1 text-primary/60 shrink-0">
+                  <PlayCircle size={18} />
                 </div>
                 <div className="flex-1 min-w-0">
                   {editingId === item.id ? (
@@ -87,7 +88,7 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({
                         value={editValue}
                         onChange={(e) => setEditValue(e.target.value)}
                         onKeyDown={(e) => e.key === 'Escape' && handleCancelRename()}
-                        className="w-full bg-black/40 border border-white/10 rounded px-2 py-0.5 text-sm text-white focus:outline-none focus:border-primary"
+                        className="w-full bg-black/40 border border-white/10 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-primary"
                       />
                       <button type="submit" onClick={handleSaveRename} className="p-1 text-emerald-400 hover:text-emerald-300">
                         <Check size={14} />
@@ -97,34 +98,45 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({
                       </button>
                     </form>
                   ) : (
-                    <h3 className="text-sm font-medium text-zinc-200 truncate pr-12">{item.title || item.url}</h3>
+                    <>
+                      <h3 className="text-sm font-bold text-zinc-100 truncate pr-14 leading-tight mb-1">{item.title}</h3>
+                      {item.author && (
+                        <div className="flex items-center gap-1.5 mb-2">
+                           <User size={10} className="text-zinc-500" />
+                           <span className="text-[10px] text-zinc-500 font-medium truncate">{item.author}</span>
+                        </div>
+                      )}
+                    </>
                   )}
-                  <div className="flex items-center gap-2 mt-2">
-                    <div className="h-1 flex-1 bg-zinc-700 rounded-full overflow-hidden">
+                  
+                  <div className="flex items-center justify-between gap-3 mt-1">
+                    <div className="flex-1 h-1 bg-zinc-800 rounded-full overflow-hidden">
                       <div 
-                        className="h-full bg-primary" 
+                        className="h-full bg-primary/60 shadow-[0_0_8px_rgba(225,0,255,0.4)]" 
                         style={{ width: `${(item.progress / (item.duration || 1)) * 100}%` }}
                       />
                     </div>
-                    <span className="text-[10px] text-zinc-500 font-mono">
-                      {Math.floor(item.progress / 60)}m
-                    </span>
+                    {item.category && (
+                      <span className="text-[9px] px-2 py-0.5 bg-primary/10 border border-primary/20 text-primary rounded-full font-bold uppercase tracking-tighter shrink-0">
+                        {item.category}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
               
               {editingId !== item.id && (
-                <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button 
                     onClick={(e) => startRename(e, item)}
-                    className="p-1.5 bg-black/40 hover:bg-primary/20 text-zinc-400 hover:text-primary rounded-md transition-colors"
+                    className="p-1.5 bg-black/60 hover:bg-primary/20 text-zinc-500 hover:text-primary rounded-lg transition-colors"
                     title="Rename"
                   >
                     <Pencil size={12} />
                   </button>
                   <button 
                     onClick={(e) => { e.stopPropagation(); onDelete(item.id); }}
-                    className="p-1.5 bg-black/40 hover:bg-red-400/20 text-zinc-500 hover:text-red-400 rounded-md transition-colors"
+                    className="p-1.5 bg-black/60 hover:bg-red-400/20 text-zinc-500 hover:text-red-400 rounded-lg transition-colors"
                     title="Delete"
                   >
                     <Trash2 size={12} />

@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -5,7 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>YouTube</title>
     
-    <!-- Favicon and App Manifest references pointing to your local files in the root folder -->
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-96x96.png">
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-96x96.png">
@@ -16,6 +16,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://www.youtube.com/iframe_api"></script>
     <script>
       tailwind.config = {
         theme: {
@@ -27,9 +28,10 @@
             colors: {
               glass: "rgba(255, 255, 255, 0.03)",
               glassBorder: "rgba(255, 255, 255, 0.08)",
-              primary: "#a855f7", 
-              primaryHover: "#9333ea",
-              accent: "#c084fc"
+              primary: "#e100ff", 
+              primaryHover: "#c100db",
+              accent: "#ffffff",
+              detox: "#0f0f0f"
             }
           }
         }
@@ -37,32 +39,32 @@
     </script>
     <style>
       body {
-        background-color: #050507;
-        color: #f4f4f5;
+        background-color: #0f0f0f;
+        color: #f1f1f1;
         margin: 0;
         padding: 0;
         overflow: hidden;
       }
-      ::-webkit-scrollbar { width: 6px; }
+      ::-webkit-scrollbar { width: 8px; }
       ::-webkit-scrollbar-track { background: transparent; }
-      ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 10px; }
-      ::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+      ::-webkit-scrollbar-thumb { background: #3f3f3f; border-radius: 10px; }
+      ::-webkit-scrollbar-thumb:hover { background: #717171; }
       
       .glass-panel {
-        background: rgba(12, 12, 14, 0.6);
-        backdrop-filter: blur(20px);
+        background: rgba(15, 15, 15, 0.7);
+        backdrop-filter: blur(12px);
         border: 1px solid rgba(255, 255, 255, 0.05);
       }
       
-      .focus-glow {
-        box-shadow: 0 0 40px -10px rgba(168, 85, 247, 0.15);
+      .yt-gradient {
+        background: radial-gradient(circle at top left, rgba(225, 0, 255, 0.04) 0%, transparent 50%);
       }
       
-      @keyframes pulse-subtle {
-        0%, 100% { opacity: 0.4; }
-        50% { opacity: 0.7; }
+      @keyframes fade-in {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
       }
-      .animate-pulse-subtle { animation: pulse-subtle 3s infinite ease-in-out; }
+      .animate-fade-in { animation: fade-in 0.4s ease-out forwards; }
     </style>
   <script type="importmap">
 {
@@ -78,7 +80,7 @@
 }
 </script>
 </head>
-  <body>
+  <body class="yt-gradient">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>

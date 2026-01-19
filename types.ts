@@ -1,12 +1,15 @@
+
 export interface VideoHistoryItem {
   id: string;
   url: string;
   title: string;
+  author?: string; // Channel name
   lastPlayed: number; // timestamp
   progress: number; // seconds
   duration: number; // seconds
   completed: boolean;
   notes: string;
+  category?: string; // AI categorized intent
 }
 
 export interface AIResponse {
