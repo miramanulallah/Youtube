@@ -1,50 +1,50 @@
+import { GoogleGenAI } from "@google/genai";
 
-import { GoogleGenAI, Type } from "@google/genai";
-
+// Using gemini-flash-lite-latest as the high-performance, free-tier compatible model.
 const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+const PLAIN_TEXT_INSTRUCTION = "CRITICAL: Do NOT use any Markdown formatting. No bolding (**), no headers (#), no bullet points (*), no italics (_), no code blocks. Use only plain text and standard line breaks. If providing a list, use plain numbering (1., 2., 3.) or just separate lines.";
 
 export const evaluateIntent = async (videoUrl: string, intent: string): Promise<{ isWorthy: boolean; reasoning: string; category: string }> => {
   const ai = getAI();
   const prompt = `
-    User is using a high-performance YouTube workspace to stay intentional.
-    They are watching: ${videoUrl}
-    Their stated reason: "${intent}"
+    Analyze the user's intent for watching this YouTube video.
+    Video URL: ${videoUrl}
+    Stated Intent: "${intent}"
     
-    CRITICAL RULE: NEVER block the user. ALWAYS allow the session. 
-    Your job is to categorize the session and provide a brief, professional acknowledgment of their intentionality.
+    Categorize the session and provide a professional, plain text acknowledgment.
     
-    Categorization examples:
-    - If it is MMA, Sports, or Games: "Intentional Leisure / Analysis"
-    - If it is Islam, Theology, or Philosophy: "Spiritual Growth"
-    - If it is Coding, Design, or Work: "Professional Development"
-    - If it is News or Politics: "Informed Awareness"
-    
-    Return response in JSON format:
+    Return response in strict JSON format:
     { 
       "isWorthy": true, 
-      "reasoning": "A short (5-10 words) supportive sentence.",
-      "category": "A short label (2-3 words max)"
+      "reasoning": "Supporting sentence in plain text.",
+      "category": "Short session category"
     }
   `;
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-flash-lite-latest',
       contents: prompt,
       config: {
         responseMimeType: "application/json",
-        systemInstruction: "You are an Intentionality Coach. You help users name their intentions. Be supportive and professional.",
+        systemInstruction: `You are an Intentionality Coach. ${PLAIN_TEXT_INSTRUCTION} Always return valid JSON.`,
       }
     });
-    const parsed = JSON.parse(response.text || "{}");
+    
+    // Safety check for JSON parsing
+    const text = response.text || "{}";
+    const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    const parsed = JSON.parse(cleaned);
+    
     return {
       isWorthy: true,
-      reasoning: parsed.reasoning || "Intent acknowledged. Focus session initiated.",
-      category: parsed.category || "General Session"
+      reasoning: parsed.reasoning || "Proceed with intention.",
+      category: parsed.category || "Focus Session"
     };
   } catch (error) {
     console.error("AI Error:", error);
-    return { isWorthy: true, reasoning: "Proceed with intention.", category: "General" };
+    return { isWorthy: true, reasoning: "Focus maintained. Proceed.", category: "General" };
   }
 };
 
@@ -56,23 +56,23 @@ export const generateStudyAid = async (
   const ai = getAI();
   
   const prompt = mode === 'plan' 
-    ? `Create a high-intensity study plan for "${videoTitle}". 3 core objectives.`
+    ? `Create a plain text study plan for "${videoTitle}". List 3 objectives clearly without any markdown.`
     : mode === 'quiz'
-    ? `3 challenging questions about "${videoTitle}".`
-    : `Refine these notes for long-term retention: "${userNotes}" from "${videoTitle}".`;
+    ? `Generate 3 plain text quiz questions about "${videoTitle}" based on these notes: "${userNotes}".`
+    : `Synthesize these notes into a clean, plain text summary: "${userNotes}" from "${videoTitle}".`;
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: 'gemini-flash-lite-latest',
       contents: prompt,
       config: {
-        thinkingConfig: { thinkingBudget: 32768 },
-        systemInstruction: "You are a master educator. Provide deep, refined insights. Use a professional, minimalist style.",
+        systemInstruction: `You are a master educator. ${PLAIN_TEXT_INSTRUCTION}`,
       }
     });
-    return response.text || "No response.";
+    return response.text || "Synthesis complete.";
   } catch (error) {
-    return "Error generating aid.";
+    console.error("Aid Error:", error);
+    return "Error generating aid. Please ensure your session and API key are valid.";
   }
 };
 
@@ -80,7 +80,7 @@ export const transcribeAudio = async (base64Audio: string): Promise<string> => {
   const ai = getAI();
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-flash-lite-latest',
       contents: [
         {
           inlineData: {
@@ -88,8 +88,11 @@ export const transcribeAudio = async (base64Audio: string): Promise<string> => {
             data: base64Audio,
           },
         },
-        { text: "Transcribe this audio exactly. Just the text, no conversational filler." },
+        { text: "Transcribe this audio into plain text. No markdown." },
       ],
+      config: {
+        systemInstruction: PLAIN_TEXT_INSTRUCTION
+      }
     });
     return response.text?.trim() || "";
   } catch (error) {
@@ -102,14 +105,15 @@ export const quickChat = async (message: string, context: string): Promise<strin
   const ai = getAI();
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-lite-latest',
-      contents: `Context: ${context}\n\nUser: ${message}`,
+      model: 'gemini-flash-lite-latest',
+      contents: `Context: ${context}\n\nUser Question: ${message}`,
       config: {
-        systemInstruction: "You are a fast-responding workspace assistant. Keep answers brief and helpful.",
+        systemInstruction: `You are a helpful assistant. Provide answers in plain text only. No markdown. ${PLAIN_TEXT_INSTRUCTION}`,
       }
     });
-    return response.text || "Assistant unavailable.";
+    return response.text || "Assistant response generated.";
   } catch (error) {
-    return "Error connecting to AI.";
+    console.error("Chat Error:", error);
+    return "Error connecting to AI workspace services.";
   }
 };
