@@ -54,7 +54,6 @@ function App() {
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [isGateOpen, setIsGateOpen] = useState(false);
   const [videoFinished, setVideoFinished] = useState(false);
-  const [showHeaderMenu, setShowHeaderMenu] = useState(false);
   const [showPlaylistPicker, setShowPlaylistPicker] = useState(false);
   const [isRecordingIntent, setIsRecordingIntent] = useState(false);
   
@@ -282,7 +281,6 @@ function App() {
         category: 'Watch Later'
       }, ...prev]);
     }
-    setShowHeaderMenu(false);
     setShowPlaylistPicker(false);
   };
 
@@ -291,7 +289,6 @@ function App() {
     if (!vidId) return;
     setPlaylists(prev => prev.map(p => (p.id === playlistId && !p.videoIds.includes(vidId)) ? { ...p, videoIds: [...p.videoIds, vidId] } : p));
     setShowPlaylistPicker(false);
-    setShowHeaderMenu(false);
   };
 
   const activeVideoId = extractYoutubeId(urlInput);
@@ -302,17 +299,18 @@ function App() {
     <div ref={containerRef} className="h-screen w-screen bg-black text-[#f1f1f1] flex overflow-hidden font-sans select-none">
       {!isCinemaMode && (
         <aside className="w-80 flex flex-col p-5 border-r border-white/5 bg-[#0f0f0f] h-full shrink-0 animate-in slide-in-from-left duration-300 overflow-hidden">
-          <div className="mb-8 flex items-center gap-3 px-2 shrink-0">
-            <WorkspaceLogo src="/favicon-96x96.png" fallback={FALLBACK_FAVICON} className="w-10 h-10 object-contain rounded-md" />
-            <div className="min-w-0">
-              <h1 className="font-bold text-xl leading-none">YouTube</h1>
-              <span className="text-[10px] text-primary uppercase font-bold block mt-1 tracking-widest">Workspace</span>
+          {/* Sidebar Branding Fix */}
+          <div className="mb-8 flex items-center gap-4 px-2 shrink-0">
+            <WorkspaceLogo src="/favicon-96x96.png" fallback={FALLBACK_FAVICON} className="w-10 h-10 object-contain rounded-lg" />
+            <div className="flex flex-col">
+              <h1 className="text-white font-bold text-2xl tracking-tight leading-tight">YouTube</h1>
+              <span className="text-primary font-black text-[10px] tracking-[0.25em] -mt-1 uppercase">WORKSPACE</span>
             </div>
           </div>
           
           <div className="mb-6 p-4 rounded-xl bg-white/5 border border-white/5 shrink-0">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-zinc-400 font-medium">Deep Focus</span>
+              <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">Session Focus</span>
               <span className="text-xs font-mono text-primary">{Math.floor(focusTime / 60)}:{String(focusTime % 60).padStart(2, '0')}</span>
             </div>
             <div className="h-1 w-full bg-zinc-800 rounded-full overflow-hidden">
@@ -340,19 +338,26 @@ function App() {
       <div className="flex-1 flex flex-col relative min-w-0 bg-black overflow-hidden h-full">
         {showHeader && (
           <header className="z-50 w-full p-4 flex justify-between items-center bg-[#0f0f0f]/95 backdrop-blur-2xl transition-all duration-500 fixed top-0 left-0 right-0 border-b border-white/5 shrink-0">
+            {/* Header Branding Left */}
             <div className="flex items-center gap-3 ml-2">
               <WorkspaceLogo src="/favicon-96x96.png" fallback={FALLBACK_FAVICON} className="w-8 h-8 object-contain rounded-md" />
-              <div className="hidden sm:block">
-                <div className="text-[10px] font-black text-white uppercase tracking-tighter">YouTube Workspace</div>
+              <div className="hidden sm:flex flex-col">
+                <span className="text-[11px] font-bold text-white uppercase tracking-tight leading-none">YouTube</span>
+                <span className="text-[8px] font-black text-primary uppercase tracking-[0.2em]">WORKSPACE</span>
               </div>
             </div>
+
             <div className="flex-1 max-w-3xl flex items-center gap-3 px-4">
               <div className="relative flex-1">
                 <input type="text" value={urlInput} onChange={e => setUrlInput(e.target.value)} placeholder="Enter video link to start intentional session..." className="w-full bg-[#121212] border border-white/10 text-white px-5 py-2.5 rounded-full text-sm outline-none focus:border-primary transition-all" />
                 <button onClick={() => { const id = extractYoutubeId(urlInput); if(id) { setIsGateOpen(false); setVideoFinished(false); } }} className="absolute right-1.5 top-1.5 bottom-1.5 px-4 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-full flex items-center gap-2 font-bold uppercase tracking-widest text-[10px]">Analyze <Zap size={14} className="text-primary" /></button>
               </div>
             </div>
-            <div className="w-12" /> {/* Placeholder for balance */}
+
+            {/* Header Branding Right (Optional, can be user profile or another logo) */}
+            <div className="flex items-center gap-3 mr-2">
+               <WorkspaceLogo src="/favicon-96x96.png" fallback={FALLBACK_FAVICON} className="w-8 h-8 object-contain rounded-md opacity-50" />
+            </div>
           </header>
         )}
 

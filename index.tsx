@@ -1,5 +1,5 @@
 
-import React, { ReactNode, ErrorInfo, Component } from 'react';
+import React, { ReactNode, ErrorInfo } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 
@@ -14,14 +14,13 @@ interface State {
 
 /**
  * ErrorBoundary captures errors from children and provides a fallback UI.
- * Explicitly using Component from named imports to ensure generic types are correctly resolved.
  */
-// Fix: Use Component directly from 'react' to ensure generic arguments are correctly inherited by the class.
-class ErrorBoundary extends Component<Props, State> {
+// Fix: Use React.Component explicitly to ensure that the TypeScript compiler correctly associates the generic Props and State types with the component instance.
+class ErrorBoundary extends React.Component<Props, State> {
   constructor(props: Props) {
     super(props);
     // Standard state initialization for class components.
-    // Fix: Correctly initializes state property which is now recognized by the compiler via generic inheritance.
+    // Fix: Properly initialize state on the instance which is now recognized due to correct generic inheritance.
     this.state = {
       hasError: false,
       error: null
@@ -42,7 +41,7 @@ class ErrorBoundary extends Component<Props, State> {
 
   render() {
     // If an error occurred, render the designated fallback UI.
-    // Fix: Accesses state property from the generic Component base class.
+    // Fix: Accesses state property which is now correctly inherited from React.Component.
     if (this.state.hasError) {
       return (
         <div style={{ padding: 20, background: '#09090b', color: '#ef4444', height: '100vh', fontFamily: 'monospace' }}>
@@ -53,7 +52,7 @@ class ErrorBoundary extends Component<Props, State> {
     }
 
     // Return the child components.
-    // Fix: Accesses props.children from the generic Component base class.
+    // Fix: Accesses props property which is now correctly inherited from React.Component.
     return this.props.children || null;
   }
 }

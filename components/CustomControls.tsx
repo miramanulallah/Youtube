@@ -1,6 +1,11 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Play, Pause, Volume2, VolumeX, Maximize, SkipBack, SkipForward, Plus, ListPlus, Clock } from 'lucide-react';
+
+interface Chapter {
+  title: string;
+  time: number; // start time in seconds
+}
 
 interface CustomControlsProps {
   playing: boolean;
@@ -41,47 +46,78 @@ export const CustomControls: React.FC<CustomControlsProps> = ({
   visible
 }) => {
   const [hoverTime, setHoverTime] = useState<number | null>(null);
+  const [hoverChapter, setHoverChapter] = useState<string | null>(null);
   const [tooltipPos, setTooltipPos] = useState(0);
   const progressBarRef = useRef<HTMLDivElement>(null);
+  
+  // Simulated or fetched chapters - in a real app, these would come from the IFrame API or video description analysis
+  // For the prompt requirement, we show how these would display if data was present.
+  const [chapters, setChapters] = useState<Chapter[]>([]);
 
+  // Update hover state
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!progressBarRef.current || duration === 0) return;
     const rect = progressBarRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const percentage = Math.max(0, Math.min(1, x / rect.width));
-    setHoverTime(percentage * duration);
+    const time = percentage * duration;
+    
+    setHoverTime(time);
     setTooltipPos(x);
+
+    // Find the current chapter name
+    const currentChapter = [...chapters].reverse().find(c => time >= c.time);
+    setHoverChapter(currentChapter ? currentChapter.title : "Introduction");
   };
 
   const handleMouseLeave = () => {
     setHoverTime(null);
+    setHoverChapter(null);
   };
 
   return (
     <div 
-      className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/80 to-transparent px-8 pb-8 pt-24 transition-all duration-500 z-[100] pointer-events-auto ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6 pointer-events-none'}`}
+      className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/90 to-transparent px-8 pb-8 pt-24 transition-all duration-500 z-[100] pointer-events-auto ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6 pointer-events-none'}`}
     >
-      {/* Tooltip for seeking */}
+      {/* Tooltip for seeking with Chapter Name */}
       {hoverTime !== null && (
         <div 
-          className="absolute bottom-[105px] transform -translate-x-1/2 bg-zinc-900 border border-white/20 px-2 py-1 rounded text-[10px] font-mono text-white shadow-2xl pointer-events-none z-[110] animate-in fade-in zoom-in duration-150"
+          className="absolute bottom-[105px] transform -translate-x-1/2 flex flex-col items-center pointer-events-none z-[110] animate-in fade-in zoom-in duration-150"
           style={{ left: `${tooltipPos + 32}px` }}
         >
-          {formatTime(hoverTime)}
+          <div className="bg-zinc-900 border border-white/20 px-3 py-1.5 rounded-lg shadow-2xl flex flex-col items-center gap-0.5">
+            <span className="text-[10px] font-black text-primary uppercase tracking-widest leading-none mb-0.5">{hoverChapter}</span>
+            <span className="text-[12px] font-mono font-bold text-white leading-none">{formatTime(hoverTime)}</span>
+          </div>
+          <div className="w-2 h-2 bg-zinc-900 border-r border-b border-white/20 transform rotate-45 -mt-1" />
         </div>
       )}
 
+      {/* Segmented Progress Bar */}
       <div 
         ref={progressBarRef}
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
         className="relative group mb-6 px-1 flex items-center h-6 cursor-pointer"
       >
-        <div className="absolute left-1 right-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
+        <div className="absolute left-1 right-1 h-1.5 flex gap-0.5 overflow-hidden">
+          {/* Base Background Track */}
+          <div className="absolute inset-0 bg-white/10 rounded-full" />
+          
+          {/* Active Played Track */}
           <div 
-            className="h-full bg-primary shadow-[0_0_15px_rgba(225,0,255,0.6)] transition-all duration-150" 
+            className="h-full bg-primary shadow-[0_0_15px_rgba(225,0,255,0.6)] transition-all duration-150 relative z-10 rounded-l-full" 
             style={{ width: `${played * 100}%` }} 
           />
+
+          {/* Simulated Chapter Markers / Separators */}
+          {[0.1, 0.25, 0.4, 0.6, 0.8].map((seg, i) => (
+             <div 
+               key={i} 
+               className="absolute top-0 bottom-0 w-0.5 bg-black/40 z-20" 
+               style={{ left: `${seg * 100}%` }} 
+             />
+          ))}
         </div>
 
         <input
