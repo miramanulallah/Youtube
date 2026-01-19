@@ -1,30 +1,45 @@
-# YouTube Focus Workspace
 
-I built this because I kept losing hours to the YouTube algorithm. You go in for a 5-minute tutorial and come out 2 hours later having learned nothing useful. This workspace is a tool to help you stay intentional.
+# YouTube Focus Workspace (v1.5)
 
-## How it works
-The core idea is simple: you can't watch a video until you tell the app exactly why you're watching it. 
+The internet is designed for consumption, not mastery. This workspace is a high-performance environment built to flip that script. It transforms YouTube from a passive distraction into an intentional learning engine using the power of **Google Gemini 3 Flash**.
 
-1. **State your Purpose:** Paste a link and type out your goal. 
-2. **Intent Check:** The built-in AI (Gemini) checks if your goal makes sense for that video.
-3. **Pure Focus:** Once you start, all the distractions (comments, sidebars, recommended videos) are gone. It's just you and the video in a clean "Cinema Mode" interface.
-4. **Active Learning:** There's a side panel for notes. You can use your voice to dictate notes, and the AI can help you turn those notes into a study plan or a quick quiz.
+## 🚀 Deep Learning Features
 
-## Tech stuff
-- **React 19** for the UI.
-- **Gemini 2.5 (Flash Lite)** handles the intent checking and study aids.
-- **Tailwind** for the styling.
-- **YouTube IFrame API** for the custom player.
+### 1. Intentional Protocol (The Gatekeeper)
+*   **Purpose-Driven Access:** Playback is locked until you define a learning objective.
+*   **AI Evaluation:** Gemini 3 Flash analyzes your intent to ensure it aligns with the video content, categorizing your session (e.g., "Skill Acquisition," "Deep Theory") before unlocking.
+*   **Voice Integration:** State your intent hands-free using the integrated microphone system.
 
-Everything is stored locally in your browser. No accounts, no tracking.
+### 2. Neural Workspace (The Sidekick)
+*   **Multi-Modal Chat:** A specialized AI Assistant that lives alongside your video. It knows the video context and your live notes, answering questions based on your specific session.
+*   **One-Click Synthesis:** Instantly generate Study Plans, Active Recall Quizzes, or Executive Summaries from your messy drafts.
+*   **Contextual Persistence:** All drafts and AI insights are tied to specific video IDs, so your work is never lost when you switch sessions.
 
-## Setup
-1. Clone this repo.
-2. Run `npm install`.
-3. You'll need a Google Gemini API key. Put it in your environment variables as `API_KEY`.
-4. Run `npm run dev` to start it up.
+### 3. Voice-to-Knowledge Pipeline
+*   **Seamless Transcription:** Integrated audio processing in the Intent Protocol, Draft Editor, and AI Chat.
+*   **High Fidelity:** Uses Gemini's native audio-to-text capabilities to capture technical terms and complex reasoning.
 
-## License
-This project is under the MIT License. See the LICENSE file for the full text.
+### 4. Zero-Distraction Player
+*   **Sanitized UI:** All YouTube noise (comments, recommendations, ads, related videos) is completely stripped away.
+*   **Custom Controls:** Frame-accurate seeking, custom playback speed indicators, and responsive HTML5 range controls.
+*   **Cinema & Focus Mode:** Toggle the workspace sidebar for a pure, distraction-free viewing experience.
+*   **Focus Timer:** Real-time tracking of active learning periods to quantify your productivity.
 
-Built for people who want to actually learn from the internet instead of just consuming it.
+### 5. Collection & Library Management
+*   **Smart History:** Automatically fetches actual creator-defined titles and channel metadata via the YouTube IFrame API.
+*   **Custom Playlists:** Build and manage collections of focused content without needing a YouTube account.
+*   **Watch Later:** A dedicated queue for videos you intend to process in future deep sessions.
+
+### 6. Data Integrity & Portability
+*   **Local-First:** All data (history, notes, playlists) is stored securely in your browser's local storage.
+*   **Export/Import:** Backup your entire workspace to a `JSON` file for archival or migration to other devices.
+
+## 🛠 Technical Stack
+- **Frontend:** React 19 + TypeScript (Local-first architecture).
+- **Intelligence:** Google Gemini 3 Flash (via `@google/genai`).
+- **Media:** YouTube IFrame API for deep hardware-level player control.
+- **Styling:** Tailwind CSS with a custom Glassmorphism/Dark-Mode design system.
+- **Icons:** Lucide-React for crisp, professional iconography.
+
+---
+**Built for researchers, engineers, and students who value their time.**

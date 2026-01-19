@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Play, Pause, Volume2, VolumeX, Maximize, SkipBack, SkipForward, Plus, ListPlus, Clock } from 'lucide-react';
 
 interface CustomControlsProps {
@@ -13,7 +13,7 @@ interface CustomControlsProps {
   onRewind: () => void;
   onFastForward: () => void;
   onToggleFullscreen: () => void;
-  onAddToList: () => void; // Added for playlist functionality
+  onAddToList: () => void;
   visible: boolean;
 }
 
@@ -40,25 +40,48 @@ export const CustomControls: React.FC<CustomControlsProps> = ({
   onAddToList,
   visible
 }) => {
-  const markers = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
+  const [hoverTime, setHoverTime] = useState<number | null>(null);
+  const [tooltipPos, setTooltipPos] = useState(0);
+  const progressBarRef = useRef<HTMLDivElement>(null);
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!progressBarRef.current || duration === 0) return;
+    const rect = progressBarRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const percentage = Math.max(0, Math.min(1, x / rect.width));
+    setHoverTime(percentage * duration);
+    setTooltipPos(x);
+  };
+
+  const handleMouseLeave = () => {
+    setHoverTime(null);
+  };
 
   return (
     <div 
       className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/80 to-transparent px-8 pb-8 pt-24 transition-all duration-500 z-[100] pointer-events-auto ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6 pointer-events-none'}`}
     >
-      <div className="relative group mb-6 px-1 flex items-center h-6">
-        <div className="absolute left-1 right-1 h-1 bg-white/20 rounded-full overflow-hidden">
+      {/* Tooltip for seeking */}
+      {hoverTime !== null && (
+        <div 
+          className="absolute bottom-[105px] transform -translate-x-1/2 bg-zinc-900 border border-white/20 px-2 py-1 rounded text-[10px] font-mono text-white shadow-2xl pointer-events-none z-[110] animate-in fade-in zoom-in duration-150"
+          style={{ left: `${tooltipPos + 32}px` }}
+        >
+          {formatTime(hoverTime)}
+        </div>
+      )}
+
+      <div 
+        ref={progressBarRef}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+        className="relative group mb-6 px-1 flex items-center h-6 cursor-pointer"
+      >
+        <div className="absolute left-1 right-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
           <div 
             className="h-full bg-primary shadow-[0_0_15px_rgba(225,0,255,0.6)] transition-all duration-150" 
             style={{ width: `${played * 100}%` }} 
           />
-          {markers.map((m, i) => (
-            <div 
-              key={i} 
-              className="absolute top-0 w-[1px] h-full bg-black/40" 
-              style={{ left: `${m * 100}%` }} 
-            />
-          ))}
         </div>
 
         <input
@@ -68,7 +91,7 @@ export const CustomControls: React.FC<CustomControlsProps> = ({
           step="any"
           value={played}
           onChange={onSeek}
-          className="progress-range absolute inset-0 w-full bg-transparent appearance-none cursor-pointer z-30"
+          className="progress-range absolute inset-0 w-full bg-transparent appearance-none cursor-pointer z-30 opacity-0 md:opacity-100"
         />
       </div>
 

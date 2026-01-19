@@ -6,15 +6,16 @@ import { CustomControls } from './components/CustomControls';
 import { VideoHistoryItem, SidebarView, Playlist } from './types';
 import { evaluateIntent, transcribeAudio } from './services/geminiService';
 import { 
-  Loader2, BrainCircuit, Zap, CheckCircle2, RotateCcw, MoreVertical, Clock, Mic, PlusSquare, X
+  Loader2, BrainCircuit, Zap, CheckCircle2, RotateCcw, MoreVertical, Clock, Mic, PlusSquare, X, MonitorPlay
 } from 'lucide-react';
 
 const LOCAL_STORAGE_KEY = 'yt_workspace_history';
 const WATCH_LATER_KEY = 'yt_workspace_watch_later';
 const PLAYLISTS_KEY = 'yt_workspace_playlists';
 
-const TOP_LOGO = "https://8upload.com/preview/f01c8db6aede6f36/favicon-96x96.png";
-const CENTER_LOGO = "https://8upload.com/preview/69403e83898df13d/12086f9a-12fe-4396-81ce-5fc8d7866199.png";
+// Favicon fallback
+const FALLBACK_FAVICON = "https://8upload.com/preview/f01c8db6aede6f36/favicon-96x96.png";
+const FALLBACK_CENTER_LOGO = "https://8upload.com/preview/69403e83898df13d/12086f9a-12fe-4396-81ce-5fc8d7866199.png";
 const PROTOCOL_ICON = "https://8upload.com/preview/b4f4f2cc43d0df2b/_CITYPNG.COM_HD_Purple_Neon_Aesthetic_Youtube_YT_Play_Icon_PNG_-_2000x2000.png";
 
 const extractYoutubeId = (url: string): string | null => {
@@ -27,6 +28,19 @@ const extractYoutubeId = (url: string): string | null => {
 const fetchThumbnail = (id: string) => `https://img.youtube.com/vi/${id}/mqdefault.jpg`;
 
 let playerInstance: any = null;
+
+// Reusable Logo Component with Fallback logic
+const WorkspaceLogo = ({ src, fallback, className }: { src: string, fallback: string, className?: string }) => {
+  const [currentSrc, setCurrentSrc] = useState(src);
+  return (
+    <img 
+      src={currentSrc} 
+      className={className} 
+      alt="Logo" 
+      onError={() => { if (currentSrc !== fallback) setCurrentSrc(fallback); }}
+    />
+  );
+};
 
 function App() {
   const [urlInput, setUrlInput] = useState('');
@@ -58,8 +72,6 @@ function App() {
   const [isMuted, setIsMuted] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(false);
   const controlsTimeoutRef = useRef<number | null>(null);
-
-  const intentRef = useRef<string>("");
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -116,13 +128,14 @@ function App() {
   };
 
   const updateMetadata = useCallback((vd: any, dur: number) => {
-    if (!vd || !vd.title) return;
+    if (!vd || !vd.title || vd.title === 'YouTube Video' || vd.title === 'Loading Title...') return;
     const vidId = vd.video_id;
     const youtubeTitle = vd.title;
 
     setCurrentVideo(prev => {
+      if (!prev) return null;
       const updated = { 
-        ...prev!, 
+        ...prev, 
         title: youtubeTitle, 
         author: vd.author, 
         duration: dur, 
@@ -141,7 +154,8 @@ function App() {
   const onPlayerReady = useCallback((event: any) => {
     setDuration(event.target.getDuration());
     setIsMuted(event.target.isMuted());
-  }, []);
+    updateMetadata(event.target.getVideoData(), event.target.getDuration());
+  }, [updateMetadata]);
 
   const onPlayerStateChange = useCallback((e: any) => {
     const YT = (window as any).YT;
@@ -192,13 +206,13 @@ function App() {
     const newItem: VideoHistoryItem = {
       id: crypto.randomUUID(),
       url: `https://www.youtube.com/watch?v=${id}`,
-      title: 'YouTube Video', // Will be updated by metadata call
+      title: 'Loading Title...', 
       thumbnailUrl: fetchThumbnail(id),
       lastPlayed: Date.now(),
       progress: 0,
       duration: 0,
       completed: false,
-      notes: initialIntent ? `Intent: ${initialIntent}\n\n` : '',
+      notes: initialIntent ? `Objective: ${initialIntent}\n\n` : '',
       category
     };
     setCurrentVideo(newItem);
@@ -212,11 +226,12 @@ function App() {
 
   const handleIntentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (intentInput.length < 2) return;
+    const intent = intentInput.trim();
+    if (intent.length < 2) return;
     setIsEvaluating(true);
-    const result = await evaluateIntent(urlInput, intentInput);
+    const result = await evaluateIntent(urlInput, intent);
     setIsEvaluating(false);
-    startSession(extractYoutubeId(urlInput)!, result.category, intentInput);
+    startSession(extractYoutubeId(urlInput)!, result.category, intent);
   };
 
   const handleMicIntent = async () => {
@@ -288,7 +303,7 @@ function App() {
       {!isCinemaMode && (
         <aside className="w-80 flex flex-col p-5 border-r border-white/5 bg-[#0f0f0f] h-full shrink-0 animate-in slide-in-from-left duration-300 overflow-hidden">
           <div className="mb-8 flex items-center gap-3 px-2 shrink-0">
-            <img src={TOP_LOGO} className="w-10 h-10 object-contain" alt="Logo" />
+            <WorkspaceLogo src="/favicon-96x96.png" fallback={FALLBACK_FAVICON} className="w-10 h-10 object-contain rounded-md" />
             <div className="min-w-0">
               <h1 className="font-bold text-xl leading-none">YouTube</h1>
               <span className="text-[10px] text-primary uppercase font-bold block mt-1 tracking-widest">Workspace</span>
@@ -297,7 +312,7 @@ function App() {
           
           <div className="mb-6 p-4 rounded-xl bg-white/5 border border-white/5 shrink-0">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-zinc-400 font-medium">Session Focus</span>
+              <span className="text-xs text-zinc-400 font-medium">Deep Focus</span>
               <span className="text-xs font-mono text-primary">{Math.floor(focusTime / 60)}:{String(focusTime % 60).padStart(2, '0')}</span>
             </div>
             <div className="h-1 w-full bg-zinc-800 rounded-full overflow-hidden">
@@ -324,35 +339,26 @@ function App() {
 
       <div className="flex-1 flex flex-col relative min-w-0 bg-black overflow-hidden h-full">
         {showHeader && (
-          <header className="z-50 w-full p-4 flex justify-center bg-[#0f0f0f]/95 backdrop-blur-2xl transition-all duration-500 fixed top-0 left-0 right-0 border-b border-white/5 shrink-0">
-            <div className="w-full max-w-3xl flex items-center gap-3">
-              <div className="relative flex-1">
-                <input type="text" value={urlInput} onChange={e => setUrlInput(e.target.value)} placeholder="Paste YouTube link..." className="w-full bg-[#121212] border border-white/10 text-white px-5 py-2.5 rounded-full text-sm outline-none focus:border-primary transition-all" />
-                <button onClick={() => { const id = extractYoutubeId(urlInput); if(id) { setIsGateOpen(false); setVideoFinished(false); } }} className="absolute right-1.5 top-1.5 bottom-1.5 px-4 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-full flex items-center gap-2 font-bold uppercase tracking-widest text-[10px]">Focus <Zap size={14} className="text-primary" /></button>
+          <header className="z-50 w-full p-4 flex justify-between items-center bg-[#0f0f0f]/95 backdrop-blur-2xl transition-all duration-500 fixed top-0 left-0 right-0 border-b border-white/5 shrink-0">
+            <div className="flex items-center gap-3 ml-2">
+              <WorkspaceLogo src="/favicon-96x96.png" fallback={FALLBACK_FAVICON} className="w-8 h-8 object-contain rounded-md" />
+              <div className="hidden sm:block">
+                <div className="text-[10px] font-black text-white uppercase tracking-tighter">YouTube Workspace</div>
               </div>
-              {activeVideoId && (
-                <div className="relative">
-                  <button type="button" onClick={() => setShowHeaderMenu(!showHeaderMenu)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-full transition-colors"><MoreVertical size={18} /></button>
-                  {showHeaderMenu && (
-                    <div className="absolute right-0 top-12 w-48 bg-[#181818] border border-white/10 rounded-xl shadow-2xl py-1 z-50 animate-fade-in overflow-hidden">
-                      <button onClick={handleSaveWatchLater} className="w-full text-left px-4 py-3 text-xs font-bold uppercase text-zinc-300 hover:bg-white/5 flex items-center gap-2 transition-colors"><Clock size={14} /> Save for later</button>
-                      <button onClick={() => setShowPlaylistPicker(true)} className="w-full text-left px-4 py-3 text-xs font-bold uppercase text-zinc-300 hover:bg-white/5 flex items-center gap-2 border-t border-white/5 transition-colors"><PlusSquare size={14} className="text-primary" /> Save in Custom</button>
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
+            <div className="flex-1 max-w-3xl flex items-center gap-3 px-4">
+              <div className="relative flex-1">
+                <input type="text" value={urlInput} onChange={e => setUrlInput(e.target.value)} placeholder="Enter video link to start intentional session..." className="w-full bg-[#121212] border border-white/10 text-white px-5 py-2.5 rounded-full text-sm outline-none focus:border-primary transition-all" />
+                <button onClick={() => { const id = extractYoutubeId(urlInput); if(id) { setIsGateOpen(false); setVideoFinished(false); } }} className="absolute right-1.5 top-1.5 bottom-1.5 px-4 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-full flex items-center gap-2 font-bold uppercase tracking-widest text-[10px]">Analyze <Zap size={14} className="text-primary" /></button>
+              </div>
+            </div>
+            <div className="w-12" /> {/* Placeholder for balance */}
           </header>
         )}
 
         {showPlaylistPicker && (
           <div className="fixed inset-0 z-[500] flex items-center justify-center bg-black/80 backdrop-blur-md">
             <div className="w-80 bg-[#121212] border border-white/10 rounded-2xl shadow-2xl p-4 animate-fade-in relative">
-              {isTranscribing && (
-                <div className="absolute -top-12 left-0 right-0 text-center animate-pulse">
-                   <span className="bg-primary px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest text-white shadow-xl">Synthesizing Voice...</span>
-                </div>
-              )}
               <div className="flex justify-between items-center mb-4 border-b border-white/5 pb-2">
                 <h3 className="text-xs font-bold uppercase tracking-widest text-primary">Target List</h3>
                 <button onClick={() => setShowPlaylistPicker(false)} className="text-zinc-500 hover:text-white transition-colors"><X size={16} /></button>
@@ -378,29 +384,56 @@ function App() {
           <div className="flex-1 relative bg-black overflow-hidden flex items-center justify-center h-full">
             {isProtocolActive && (
               <div className="absolute inset-0 z-[150] flex items-center justify-center bg-[#0f0f0f] p-8 animate-fade-in">
-                <div className="max-w-md w-full text-center space-y-6">
-                  <img src={PROTOCOL_ICON} className="w-32 h-32 mx-auto drop-shadow-[0_0_20px_rgba(225,0,255,0.6)]" alt="Protocol" />
-                  <h2 className="text-2xl font-bold uppercase tracking-tight">Intentional Protocol</h2>
-                  <div className="relative">
-                    <textarea value={intentInput} onChange={e => setIntentInput(e.target.value)} placeholder="State your purpose..." className="w-full bg-[#181818] border border-white/10 rounded-xl p-5 text-sm text-white focus:border-primary outline-none min-h-[120px] resize-none transition-colors" />
-                    <button onClick={handleMicIntent} className={`absolute bottom-4 right-4 p-2.5 rounded-full transition-all ${isRecordingIntent ? 'bg-red-500 animate-pulse text-white shadow-lg shadow-red-500/20' : 'bg-zinc-800 text-zinc-400'}`}><Mic size={18} /></button>
-                    {isTranscribing && (
-                      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-black/60 backdrop-blur px-6 py-3 rounded-full flex items-center gap-2 border border-primary/20">
-                        <Loader2 className="animate-spin text-primary" size={16} />
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-primary">Transcribing...</span>
+                <div className="max-w-md w-full text-center space-y-6 relative">
+                  {isTranscribing && (
+                    <div className="absolute -top-16 left-0 right-0 flex justify-center animate-bounce">
+                      <div className="bg-primary px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest text-white shadow-2xl flex items-center gap-2">
+                        <Loader2 size={12} className="animate-spin" /> Transcribing Goal...
                       </div>
+                    </div>
+                  )}
+                  <div className="relative inline-block">
+                    <WorkspaceLogo src={PROTOCOL_ICON} fallback={PROTOCOL_ICON} className={`w-32 h-32 mx-auto transition-all duration-500 ${isRecordingIntent ? 'scale-110 drop-shadow-[0_0_40px_rgba(225,0,255,0.8)]' : 'drop-shadow-[0_0_20px_rgba(225,0,255,0.6)]'}`} />
+                    {isRecordingIntent && <div className="absolute inset-0 border-4 border-primary rounded-full animate-ping opacity-20" />}
+                  </div>
+                  <h2 className="text-2xl font-black uppercase tracking-tight text-white">Intentional Protocol</h2>
+                  <div className="relative group">
+                    <textarea 
+                      value={intentInput} 
+                      onChange={e => setIntentInput(e.target.value)} 
+                      placeholder="Why are you watching this? State your learning objective..." 
+                      className="w-full bg-[#181818] border border-white/10 rounded-2xl p-6 text-sm text-white focus:border-primary outline-none min-h-[140px] resize-none transition-all shadow-inner" 
+                    />
+                    <button 
+                      onClick={handleMicIntent} 
+                      className={`absolute bottom-4 right-4 p-3 rounded-full transition-all ${isRecordingIntent ? 'bg-red-500 text-white animate-pulse shadow-lg' : 'bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700'}`}
+                    >
+                      <Mic size={20} />
+                    </button>
+                    {isRecordingIntent && (
+                       <div className="absolute bottom-4 left-6 flex items-end gap-1 pointer-events-none">
+                         {[1,2,3,4,5].map(i => (
+                           <div key={i} className="w-1 bg-red-400 animate-pulse" style={{ height: `${Math.random() * 20 + 8}px`, animationDelay: `${i * 0.1}s` }} />
+                         ))}
+                       </div>
                     )}
                   </div>
-                  <div className="flex gap-3">
-                    <button type="button" onClick={() => { const id = extractYoutubeId(urlInput); if(id) startSession(id, "Quick Session"); }} className="flex-1 py-4 bg-zinc-800 hover:bg-zinc-700 text-white rounded-full font-bold uppercase text-xs tracking-widest transition-all active:scale-95">Skip</button>
-                    <button onClick={handleIntentSubmit} disabled={isEvaluating} className="flex-[2] py-4 bg-white hover:bg-zinc-200 text-black rounded-full font-bold uppercase text-xs tracking-widest flex items-center justify-center gap-2 transition-all active:scale-95 shadow-[0_0_20px_rgba(255,255,255,0.2)] disabled:opacity-50">{isEvaluating ? <Loader2 className="animate-spin" /> : <BrainCircuit size={18} />} Secure Access</button>
+                  <div className="flex gap-4">
+                    <button type="button" onClick={() => { const id = extractYoutubeId(urlInput); if(id) startSession(id, "Direct Session"); }} className="flex-1 py-4 bg-zinc-800/50 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded-full font-bold uppercase text-[11px] tracking-widest transition-all active:scale-95 border border-white/5">Skip Analysis</button>
+                    <button 
+                      onClick={handleIntentSubmit} 
+                      disabled={isEvaluating || !intentInput.trim()} 
+                      className="flex-[2] py-4 bg-white hover:bg-zinc-200 text-black rounded-full font-bold uppercase text-[11px] tracking-widest flex items-center justify-center gap-2 transition-all active:scale-95 shadow-[0_0_30px_rgba(255,255,255,0.1)] disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isEvaluating ? <Loader2 className="animate-spin" /> : <BrainCircuit size={18} />} Verify Intent
+                    </button>
                   </div>
                 </div>
               </div>
             )}
             
             <div className={`w-full h-full relative ${activeVideoId && isGateOpen && !videoFinished ? 'block' : 'hidden'}`}>
-              <div ref={playerContainerRef} className="w-full h-full scale-[1.02]" />
+              <div ref={playerContainerRef} className="w-full h-full" />
             </div>
 
             {activeVideoId && isGateOpen && !videoFinished && (
@@ -429,26 +462,30 @@ function App() {
             )}
 
             {videoFinished && (
-              <div className="absolute inset-0 z-[200] flex flex-col items-center justify-center bg-black/95 backdrop-blur-xl p-12 text-center animate-fade-in">
-                <CheckCircle2 size={80} className="text-emerald-500 mb-8 drop-shadow-[0_0_25px_rgba(16,185,129,0.5)]" />
-                <h2 className="text-5xl font-black mb-8 tracking-tighter">Session Refined</h2>
-                <div className="flex gap-4">
-                  <button onClick={() => { setVideoFinished(false); playerInstance?.playVideo(); }} className="px-10 py-4 bg-white/10 text-white rounded-full font-bold hover:bg-white/20 transition-all active:scale-95 border border-white/10 uppercase tracking-widest text-xs"><RotateCcw size={18} className="inline mr-2" /> Replay</button>
-                  <button onClick={() => { setIsGateOpen(false); setUrlInput(''); setIsFocusing(false); setIsCinemaMode(false); }} className="px-10 py-4 bg-primary text-white rounded-full font-bold shadow-[0_0_30px_rgba(225,0,255,0.4)] hover:bg-primaryHover transition-all active:scale-95 uppercase tracking-widest text-xs">Exit Workspace</button>
+              <div className="absolute inset-0 z-[200] flex flex-col items-center justify-center bg-black/98 backdrop-blur-3xl p-12 text-center animate-fade-in">
+                <div className="relative mb-10">
+                  <CheckCircle2 size={100} className="text-emerald-500 drop-shadow-[0_0_35px_rgba(16,185,129,0.7)]" />
+                  <div className="absolute inset-0 border-2 border-emerald-500 rounded-full animate-ping opacity-10" />
+                </div>
+                <h2 className="text-6xl font-black mb-4 tracking-tighter text-white">Deep Work Success</h2>
+                <p className="text-zinc-500 mb-12 text-lg max-w-lg">You maintained intentional focus for this session. Your notes have been preserved.</p>
+                <div className="flex gap-6">
+                  <button onClick={() => { setVideoFinished(false); playerInstance?.playVideo(); }} className="px-12 py-5 bg-white/5 text-white rounded-full font-bold hover:bg-white/10 transition-all active:scale-95 border border-white/10 uppercase tracking-widest text-[11px]"><RotateCcw size={18} className="inline mr-2" /> Resume Flow</button>
+                  <button onClick={() => { setIsGateOpen(false); setUrlInput(''); setIsFocusing(false); setIsCinemaMode(false); }} className="px-12 py-5 bg-primary text-white rounded-full font-bold shadow-[0_0_40px_rgba(225,0,255,0.5)] hover:bg-primaryHover transition-all active:scale-95 uppercase tracking-widest text-[11px]">End Workspace</button>
                 </div>
               </div>
             )}
 
             {!activeVideoId && (
               <div className="text-center p-12 animate-fade-in flex flex-col items-center">
-                <img src={CENTER_LOGO} className="w-48 h-48 mx-auto mb-10 animate-glow-pulse object-contain" alt="Logo" />
-                <h2 className="text-3xl font-black mb-3 tracking-tight">Ready for Focus</h2>
-                <p className="text-zinc-500 text-sm max-w-sm mx-auto leading-relaxed">Intentionality is performance. Paste a YouTube link above to begin your deep session.</p>
+                <WorkspaceLogo src="/favicon-96x96.png" fallback={FALLBACK_CENTER_LOGO} className="w-56 h-56 mx-auto mb-10 animate-glow-pulse object-contain" />
+                <h2 className="text-4xl font-black mb-4 tracking-tight text-white">Focus flow. AI guided.</h2>
+                <p className="text-zinc-500 text-lg max-w-md mx-auto leading-relaxed">Passive consumption is the end of growth. State your intention and dive into deep learning.</p>
               </div>
             )}
           </div>
           {!isCinemaMode && (
-            <div className="w-[420px] hidden xl:flex flex-col h-full shrink-0 border-l border-white/5 animate-in slide-in-from-right duration-300 overflow-hidden">
+            <div className="w-[440px] hidden xl:flex flex-col h-full shrink-0 border-l border-white/5 animate-in slide-in-from-right duration-500 overflow-hidden">
               <AIStudio 
                 currentTitle={currentVideo?.title || ''} 
                 notes={currentVideo?.notes || ''} 
