@@ -13,6 +13,12 @@ export interface VideoHistoryItem {
   category?: string; // AI categorized intent
 }
 
+export interface Playlist {
+  id: string;
+  name: string;
+  videoIds: string[]; // List of YouTube IDs
+}
+
 export interface ChatMessage {
   role: 'user' | 'model' | 'thought';
   text: string;
@@ -32,4 +38,5 @@ export enum TabView {
 export enum SidebarView {
   HISTORY = 'HISTORY',
   WATCH_LATER = 'WATCH_LATER',
+  PLAYLISTS = 'PLAYLISTS',
 }
