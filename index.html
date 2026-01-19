@@ -73,6 +73,27 @@
       
       .animate-fade-in { animation: fade-in 0.4s ease-out forwards; }
       .animate-glow-pulse { animation: glow-pulse 3s infinite ease-in-out; }
+
+      /* Progress Bar Custom Styles */
+      .progress-range::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 14px;
+        height: 14px;
+        background: #e100ff;
+        border-radius: 50%;
+        cursor: pointer;
+        box-shadow: 0 0 10px rgba(225, 0, 255, 0.8);
+        border: 2px solid white;
+        margin-top: -5px;
+        z-index: 20;
+        position: relative;
+      }
+
+      .progress-range::-webkit-slider-runnable-track {
+        height: 4px;
+        background: transparent;
+      }
     </style>
   <script type="importmap">
 {

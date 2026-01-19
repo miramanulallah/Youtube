@@ -38,11 +38,33 @@ export const CustomControls: React.FC<CustomControlsProps> = ({
   onToggleFullscreen,
   visible
 }) => {
+  // Generate markers every 10% for visual structure
+  const markers = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
+
   return (
     <div 
-      className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent px-6 pb-6 pt-20 transition-all duration-300 z-50 pointer-events-auto ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}
+      className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/60 to-transparent px-8 pb-8 pt-24 transition-all duration-500 z-[100] pointer-events-auto ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6 pointer-events-none'}`}
     >
-      <div className="flex items-center gap-4 mb-4 group px-2">
+      <div className="relative group mb-6 px-1 flex items-center h-6">
+        {/* Background Track */}
+        <div className="absolute left-1 right-1 h-1 bg-white/20 rounded-full overflow-hidden">
+          {/* Progress Fill (The Purple Back Side) */}
+          <div 
+            className="h-full bg-primary shadow-[0_0_15px_rgba(225,0,255,0.6)] transition-all duration-150" 
+            style={{ width: `${played * 100}%` }} 
+          />
+          
+          {/* Seek Markers (Interval Ticks) */}
+          {markers.map((m, i) => (
+            <div 
+              key={i} 
+              className="absolute top-0 w-[1px] h-full bg-black/40" 
+              style={{ left: `${m * 100}%` }} 
+            />
+          ))}
+        </div>
+
+        {/* Transparent Input Range for Interaction */}
         <input
           type="range"
           min={0}
@@ -50,33 +72,46 @@ export const CustomControls: React.FC<CustomControlsProps> = ({
           step="any"
           value={played}
           onChange={onSeek}
-          className="w-full h-1.5 bg-white/20 rounded-lg appearance-none cursor-pointer hover:h-2 transition-all [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:shadow-[0_0_15px_rgba(225,0,255,0.8)]"
+          className="progress-range absolute inset-0 w-full bg-transparent appearance-none cursor-pointer z-30"
         />
       </div>
 
       <div className="flex items-center justify-between text-white select-none">
-        <div className="flex items-center gap-6">
-          <button onClick={onPlayPause} className="hover:text-primary transition-all active:scale-90 p-1">
-            {playing ? <Pause size={28} fill="currentColor" /> : <Play size={28} fill="currentColor" />}
+        <div className="flex items-center gap-8">
+          <button onClick={onPlayPause} className="hover:text-primary transition-all active:scale-90 p-1.5 bg-white/5 hover:bg-white/10 rounded-full">
+            {playing ? <Pause size={32} fill="currentColor" /> : <Play size={32} fill="currentColor" />}
           </button>
           
-          <div className="flex items-center gap-5 text-white/70">
-            <button onClick={onRewind} className="hover:text-white transition-colors p-1" title="Rewind 10s"><SkipBack size={22} /></button>
-            <button onClick={onFastForward} className="hover:text-white transition-colors p-1" title="Forward 10s"><SkipForward size={22} /></button>
+          <div className="flex items-center gap-6 text-white/80">
+            <button onClick={onRewind} className="hover:text-primary transition-all p-1 bg-white/5 hover:bg-white/10 rounded-lg" title="Rewind 10s">
+              <SkipBack size={24} />
+            </button>
+            <button onClick={onFastForward} className="hover:text-primary transition-all p-1 bg-white/5 hover:bg-white/10 rounded-lg" title="Forward 10s">
+              <SkipForward size={24} />
+            </button>
           </div>
 
-          <button onClick={onMute} className="hover:text-white transition-colors p-1">
-            {muted ? <VolumeX size={22} /> : <Volume2 size={22} />}
+          <button onClick={onMute} className="hover:text-white transition-colors p-1.5 bg-white/5 hover:bg-white/10 rounded-full">
+            {muted ? <VolumeX size={24} className="text-red-400" /> : <Volume2 size={24} />}
           </button>
 
-          <span className="text-sm font-mono text-zinc-400 tracking-wider">
-            {formatTime(duration * played)} <span className="opacity-30">/</span> {formatTime(duration)}
-          </span>
+          <div className="flex flex-col">
+            <span className="text-sm font-mono font-bold tracking-widest text-zinc-100">
+              {formatTime(duration * played)}
+            </span>
+            <span className="text-[10px] font-mono text-zinc-500 uppercase">
+               / {formatTime(duration)}
+            </span>
+          </div>
         </div>
 
         <div className="flex items-center gap-4">
-          <button onClick={onToggleFullscreen} className="hover:text-primary transition-colors p-1" title="Full Screen (F)">
-            <Maximize size={22} />
+          <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-primary/10 border border-primary/20 rounded-full">
+            <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+            <span className="text-[10px] font-black text-primary uppercase tracking-tighter">Live Session</span>
+          </div>
+          <button onClick={onToggleFullscreen} className="hover:text-primary transition-all p-2 bg-white/5 hover:bg-white/10 rounded-full" title="Full Screen (F)">
+            <Maximize size={24} />
           </button>
         </div>
       </div>
