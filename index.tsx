@@ -1,9 +1,10 @@
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+
+import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 
 interface Props {
-  children?: ReactNode;
+  children?: React.ReactNode;
 }
 
 interface State {
@@ -11,12 +12,13 @@ interface State {
   error: Error | null;
 }
 
-// Fixed ErrorBoundary by explicitly importing Component and extending it with <Props, State> generics. 
-// This ensures that 'this.props' and 'this.state' are correctly typed and recognized by the TypeScript compiler.
-class ErrorBoundary extends Component<Props, State> {
+// Fixed ErrorBoundary by explicitly extending React.Component with Props and State.
+// This ensures that 'this.props' and 'this.state' are correctly typed and recognized by the TypeScript compiler,
+// resolving errors where these properties were reported as missing on the class instance.
+class ErrorBoundary extends React.Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    // Explicitly initialize state which is now correctly inherited and typed from Component.
+    // Explicitly initialize state which is now correctly inherited from React.Component.
     this.state = {
       hasError: false,
       error: null
@@ -29,7 +31,7 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   // This lifecycle method is called during the commit phase for error reporting.
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error("Uncaught error:", error, errorInfo);
   }
 

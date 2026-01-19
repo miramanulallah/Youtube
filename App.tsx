@@ -271,6 +271,11 @@ function App() {
 
   const activeVideoId = extractYoutubeId(urlInput);
 
+  // Header should be hidden if protocol is active OR if in session and not hovered.
+  // This prevents the search bar from overlapping the Intentional Protocol view.
+  const isProtocolActive = activeVideoId && !isGateOpen;
+  const hideHeader = isProtocolActive || ((isCinemaMode || isGateOpen) && !controlsVisible);
+
   return (
     <div ref={containerRef} className="h-screen w-screen bg-black text-[#f1f1f1] flex overflow-hidden font-sans">
       {!isCinemaMode && (
@@ -309,11 +314,10 @@ function App() {
       )}
 
       <div className="flex-1 flex flex-col relative min-w-0 bg-black">
-        {/* Header visibility fix: hide immediately if a video is identified (Protocol or Session) unless hovering */}
         <header 
           onMouseEnter={() => setControlsVisible(true)}
           className={`z-50 w-full p-4 flex justify-center bg-[#0f0f0f]/95 backdrop-blur-2xl transition-all duration-500 fixed top-0 left-0 right-0 border-b border-white/5
-            ${(activeVideoId || isCinemaMode || isGateOpen) && !controlsVisible ? '-translate-y-full opacity-0' : 'translate-y-0 opacity-100'}`}
+            ${hideHeader ? '-translate-y-full opacity-0' : 'translate-y-0 opacity-100'}`}
         >
           <div className="w-full max-w-3xl flex items-center gap-3">
             <div className="relative flex-1">
@@ -363,8 +367,8 @@ function App() {
           className={`flex-1 flex gap-0 transition-all duration-500 pt-0`}
         >
           <div className="flex-1 relative bg-black overflow-hidden flex items-center justify-center">
-            {activeVideoId && !isGateOpen && (
-              <div className="absolute inset-0 z-[60] flex items-center justify-center bg-[#0f0f0f] p-8 animate-fade-in">
+            {isProtocolActive && (
+              <div className="absolute inset-0 z-[70] flex items-center justify-center bg-[#0f0f0f] p-8 animate-fade-in">
                 <div className="max-w-md w-full text-center space-y-6">
                   <img src={PROTOCOL_ICON} className="w-32 h-32 mx-auto drop-shadow-[0_0_20px_rgba(225,0,255,0.6)]" alt="Protocol" />
                   <h2 className="text-2xl font-bold uppercase tracking-tight">Intentional Protocol</h2>
