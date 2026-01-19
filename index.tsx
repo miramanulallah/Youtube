@@ -1,5 +1,5 @@
 
-import React, { ReactNode, ErrorInfo } from 'react';
+import React, { Component, ReactNode, ErrorInfo } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 
@@ -15,16 +15,16 @@ interface State {
 /**
  * ErrorBoundary captures errors from children and provides a fallback UI.
  */
-// Fix: Use React.Component explicitly to ensure that the TypeScript compiler correctly associates the generic Props and State types with the component instance.
-class ErrorBoundary extends React.Component<Props, State> {
+// Fix: Use Component directly from 'react' and explicitly declare state to ensure that the TypeScript compiler correctly associates the generic Props and State types.
+class ErrorBoundary extends Component<Props, State> {
+  // Fix: Initializing state as a class property helps TypeScript resolve the 'state' property on the instance.
+  state: State = {
+    hasError: false,
+    error: null
+  };
+
   constructor(props: Props) {
     super(props);
-    // Standard state initialization for class components.
-    // Fix: Properly initialize state on the instance which is now recognized due to correct generic inheritance.
-    this.state = {
-      hasError: false,
-      error: null
-    };
   }
 
   // Static method used to update state after an error is detected.
@@ -41,7 +41,7 @@ class ErrorBoundary extends React.Component<Props, State> {
 
   render() {
     // If an error occurred, render the designated fallback UI.
-    // Fix: Accesses state property which is now correctly inherited from React.Component.
+    // Fix: Accessing state which is now correctly inherited and recognized.
     if (this.state.hasError) {
       return (
         <div style={{ padding: 20, background: '#09090b', color: '#ef4444', height: '100vh', fontFamily: 'monospace' }}>
@@ -52,7 +52,7 @@ class ErrorBoundary extends React.Component<Props, State> {
     }
 
     // Return the child components.
-    // Fix: Accesses props property which is now correctly inherited from React.Component.
+    // Fix: Accessing props which is now correctly inherited and recognized.
     return this.props.children || null;
   }
 }

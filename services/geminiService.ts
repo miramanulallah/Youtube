@@ -1,13 +1,14 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 
-// Using gemini-3-flash-preview as the high-performance model for text and multi-modal tasks.
+// Fix: Use gemini-3-pro-preview for advanced reasoning tasks (intent analysis, study plans) and gemini-3-flash-preview for basic text/transcription tasks.
 const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const PLAIN_TEXT_INSTRUCTION = "CRITICAL: Do NOT use any Markdown formatting. No bolding (**), no headers (#), no bullet points (*), no italics (_), no code blocks. Use only plain text and standard line breaks. If providing a list, use plain numbering (1., 2., 3.) or just separate lines.";
 
 /**
  * Evaluates the user's intent for watching a video.
- * Uses gemini-3-flash-preview and responseSchema to ensure structured JSON response.
+ * Uses gemini-3-pro-preview for advanced reasoning as an Intentionality Coach.
  */
 export const evaluateIntent = async (videoUrl: string, intent: string): Promise<{ isWorthy: boolean; reasoning: string; category: string }> => {
   const ai = getAI();
@@ -20,8 +21,9 @@ export const evaluateIntent = async (videoUrl: string, intent: string): Promise<
   `;
 
   try {
+    // Fix: Upgrade to gemini-3-pro-preview for better intent analysis reasoning.
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3-pro-preview',
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -38,7 +40,7 @@ export const evaluateIntent = async (videoUrl: string, intent: string): Promise<
       }
     });
     
-    // Accessing .text property directly as per guidelines.
+    // Fix: Accessing .text property directly instead of calling it as a method.
     const text = response.text || "{}";
     const parsed = JSON.parse(text);
     
@@ -54,7 +56,7 @@ export const evaluateIntent = async (videoUrl: string, intent: string): Promise<
 };
 
 /**
- * Generates study aids such as plans, quizzes, or summaries using gemini-3-flash-preview.
+ * Generates study aids such as plans, quizzes, or summaries using gemini-3-pro-preview.
  */
 export const generateStudyAid = async (
   videoTitle: string, 
@@ -70,13 +72,15 @@ export const generateStudyAid = async (
     : `Synthesize these notes into a clean, plain text summary: "${userNotes}" from "${videoTitle}".`;
 
   try {
+    // Fix: Upgrade to gemini-3-pro-preview for high-quality educational content generation.
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3-pro-preview',
       contents: prompt,
       config: {
         systemInstruction: `You are a master educator. ${PLAIN_TEXT_INSTRUCTION}`,
       }
     });
+    // Fix: Use .text property.
     return response.text || "Synthesis complete.";
   } catch (error) {
     console.error("Aid Error:", error);
@@ -85,11 +89,12 @@ export const generateStudyAid = async (
 };
 
 /**
- * Transcribes audio using gemini-3-flash-preview's multi-modal capabilities.
+ * Transcribes audio using gemini-3-flash-preview.
  */
 export const transcribeAudio = async (base64Audio: string): Promise<string> => {
   const ai = getAI();
   try {
+    // Fix: Use gemini-3-flash-preview for standard transcription tasks.
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: {
@@ -107,6 +112,7 @@ export const transcribeAudio = async (base64Audio: string): Promise<string> => {
         systemInstruction: PLAIN_TEXT_INSTRUCTION
       }
     });
+    // Fix: Use .text property.
     return response.text?.trim() || "";
   } catch (error) {
     console.error("Transcription error:", error);
@@ -120,13 +126,15 @@ export const transcribeAudio = async (base64Audio: string): Promise<string> => {
 export const quickChat = async (message: string, context: string): Promise<string> => {
   const ai = getAI();
   try {
+    // Fix: Use gemini-3-pro-preview for contextual conversational reasoning.
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3-pro-preview',
       contents: `Context: ${context}\n\nUser Question: ${message}`,
       config: {
         systemInstruction: `You are a helpful assistant. Provide answers in plain text only. No markdown. ${PLAIN_TEXT_INSTRUCTION}`,
       }
     });
+    // Fix: Use .text property.
     return response.text || "Assistant response generated.";
   } catch (error) {
     console.error("Chat Error:", error);

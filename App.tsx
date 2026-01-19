@@ -112,13 +112,20 @@ function App() {
         const c = playerInstance.getCurrentTime();
         const t = playerInstance.getDuration();
         if (t > 0) {
-          setPlayed(c / t);
+          const progressPercent = c / t;
+          setPlayed(progressPercent);
           setDuration(t);
+          
+          // Persistent Playback Progress Update
+          if (currentVideo) {
+            setCurrentVideo(prev => prev ? { ...prev, progress: c } : null);
+            setHistory(old => old.map(h => h.id === currentVideo.id ? { ...h, progress: c, duration: t } : h));
+          }
         }
-      }, 500);
+      }, 2000); // Save progress every 2 seconds
     }
     return () => clearInterval(interval);
-  }, [isPlaying]);
+  }, [isPlaying, currentVideo?.id]);
 
   const togglePlay = () => {
     if (!playerInstance) return;
@@ -127,34 +134,49 @@ function App() {
   };
 
   const updateMetadata = useCallback((vd: any, dur: number) => {
-    if (!vd || !vd.title || vd.title === 'YouTube Video' || vd.title === 'Loading Title...') return;
+    // If title is generic or missing, don't update to "Loading Title..."
+    if (!vd || !vd.title || vd.title === 'YouTube Video' || vd.title === '' || vd.title.toLowerCase().includes('loading')) return;
+    
     const vidId = vd.video_id;
     const youtubeTitle = vd.title;
+    const author = vd.author;
 
     setCurrentVideo(prev => {
       if (!prev) return null;
+      // Safety check: ensure we are updating the correct video in session
+      if (extractYoutubeId(prev.url) !== vidId) return prev;
+
       const updated = { 
         ...prev, 
         title: youtubeTitle, 
-        author: vd.author, 
+        author: author, 
         duration: dur, 
         thumbnailUrl: fetchThumbnail(vidId) 
       } as VideoHistoryItem;
       
       setHistory(old => {
-        const exists = old.some(h => extractYoutubeId(h.url) === vidId);
-        if (!exists) return [updated, ...old];
-        return old.map(h => extractYoutubeId(h.url) === vidId ? { ...h, ...updated } : h);
+        const index = old.findIndex(h => extractYoutubeId(h.url) === vidId);
+        if (index === -1) return [updated, ...old];
+        const newHistory = [...old];
+        newHistory[index] = { ...newHistory[index], ...updated };
+        return newHistory;
       });
       return updated;
     });
   }, []);
 
   const onPlayerReady = useCallback((event: any) => {
-    setDuration(event.target.getDuration());
+    const dur = event.target.getDuration();
+    setDuration(dur);
     setIsMuted(event.target.isMuted());
-    updateMetadata(event.target.getVideoData(), event.target.getDuration());
-  }, [updateMetadata]);
+    
+    // Resume from saved progress if available
+    if (currentVideo && currentVideo.progress > 0) {
+      event.target.seekTo(currentVideo.progress, true);
+    }
+    
+    updateMetadata(event.target.getVideoData(), dur);
+  }, [updateMetadata, currentVideo?.id]);
 
   const onPlayerStateChange = useCallback((e: any) => {
     const YT = (window as any).YT;
@@ -178,9 +200,12 @@ function App() {
     }
   }, [updateMetadata]);
 
-  const loadPlayer = useCallback((videoId: string) => {
+  const loadPlayer = useCallback((videoId: string, startAt: number = 0) => {
     if (playerInstance?.loadVideoById) {
-      playerInstance.loadVideoById(videoId);
+      playerInstance.loadVideoById({
+        videoId: videoId,
+        startSeconds: Math.floor(startAt)
+      });
       return;
     }
     const checkYT = setInterval(() => {
@@ -193,7 +218,8 @@ function App() {
         playerInstance = new (window as any).YT.Player('yt-player-internal', {
           height: '100%', width: '100%', videoId,
           playerVars: { 
-            autoplay: 1, controls: 0, modestbranding: 1, rel: 0, showinfo: 0, iv_load_policy: 3, disablekb: 1, fs: 0 
+            autoplay: 1, controls: 0, modestbranding: 1, rel: 0, showinfo: 0, iv_load_policy: 3, disablekb: 1, fs: 0,
+            start: Math.floor(startAt)
           },
           events: { onReady: onPlayerReady, onStateChange: onPlayerStateChange }
         });
@@ -202,6 +228,24 @@ function App() {
   }, [onPlayerReady, onPlayerStateChange]);
 
   const startSession = (id: string, category: string, initialIntent: string = "") => {
+    // Check for existing video in history to prevent duplicates
+    const existing = history.find(h => extractYoutubeId(h.url) === id);
+    
+    if (existing) {
+      const updatedExisting = { ...existing, lastPlayed: Date.now() };
+      setCurrentVideo(updatedExisting);
+      // Bring existing to top of history
+      setHistory(old => [updatedExisting, ...old.filter(h => h.id !== existing.id)]);
+      setIsGateOpen(true);
+      setVideoFinished(false);
+      setIsCinemaMode(true);
+      setControlsVisible(false);
+      // Resume from saved progress
+      setTimeout(() => loadPlayer(id, existing.progress), 200);
+      return;
+    }
+
+    // Create new entry if not found
     const newItem: VideoHistoryItem = {
       id: crypto.randomUUID(),
       url: `https://www.youtube.com/watch?v=${id}`,
@@ -220,7 +264,7 @@ function App() {
     setVideoFinished(false);
     setIsCinemaMode(true);
     setControlsVisible(false);
-    setTimeout(() => loadPlayer(id), 200);
+    setTimeout(() => loadPlayer(id, 0), 200);
   };
 
   const handleIntentSubmit = async (e: React.FormEvent) => {
@@ -274,8 +318,8 @@ function App() {
         title: currentVideo?.title || 'Saved Video',
         thumbnailUrl: fetchThumbnail(id),
         lastPlayed: Date.now(),
-        progress: 0,
-        duration: 0,
+        progress: currentVideo?.progress || 0,
+        duration: currentVideo?.duration || 0,
         completed: false,
         notes: '',
         category: 'Watch Later'
@@ -299,12 +343,12 @@ function App() {
     <div ref={containerRef} className="h-screen w-screen bg-black text-[#f1f1f1] flex overflow-hidden font-sans select-none">
       {!isCinemaMode && (
         <aside className="w-80 flex flex-col p-5 border-r border-white/5 bg-[#0f0f0f] h-full shrink-0 animate-in slide-in-from-left duration-300 overflow-hidden">
-          {/* Sidebar Branding Fix */}
+          {/* Sidebar Branding - Strict Alignment with Request */}
           <div className="mb-8 flex items-center gap-4 px-2 shrink-0">
-            <WorkspaceLogo src="/favicon-96x96.png" fallback={FALLBACK_FAVICON} className="w-10 h-10 object-contain rounded-lg" />
+            <WorkspaceLogo src="/favicon-96x96.png" fallback={FALLBACK_FAVICON} className="w-10 h-10 object-contain rounded-lg shadow-[0_0_15px_rgba(225,0,255,0.2)]" />
             <div className="flex flex-col">
-              <h1 className="text-white font-bold text-2xl tracking-tight leading-tight">YouTube</h1>
-              <span className="text-primary font-black text-[10px] tracking-[0.25em] -mt-1 uppercase">WORKSPACE</span>
+              <h1 className="text-white font-bold text-2xl tracking-tight leading-none">YouTube</h1>
+              <span className="text-primary font-black text-[10px] tracking-[0.25em] -mt-0.5 uppercase">WORKSPACE</span>
             </div>
           </div>
           
@@ -322,7 +366,14 @@ function App() {
             <div className="absolute inset-0">
               <HistoryPanel 
                 history={history} watchLater={watchLater} playlists={playlists} currentView={sidebarView} onViewChange={setSidebarView}
-                onSelect={i => { setUrlInput(i.url); setIsGateOpen(true); setCurrentVideo(i); setVideoFinished(false); setIsCinemaMode(true); setTimeout(() => loadPlayer(extractYoutubeId(i.url)!), 200); }}
+                onSelect={i => { 
+                   setUrlInput(i.url); 
+                   setCurrentVideo(i); 
+                   setIsGateOpen(true); 
+                   setVideoFinished(false); 
+                   setIsCinemaMode(true); 
+                   setTimeout(() => loadPlayer(extractYoutubeId(i.url)!, i.progress), 200); 
+                }}
                 onDelete={(id, wl) => wl ? setWatchLater(p => p.filter(i=>i.id!==id)) : setHistory(p => p.filter(i=>i.id!==id))}
                 onRename={(id, t, wl) => wl ? setWatchLater(p => p.map(h=>h.id===id?{...h,title:t}:h)) : setHistory(p => p.map(h=>h.id===id?{...h,title:t}:h))}
                 onCreatePlaylist={(name) => setPlaylists(prev => [...prev, { id: crypto.randomUUID(), name, videoIds: [] }])}
@@ -338,7 +389,7 @@ function App() {
       <div className="flex-1 flex flex-col relative min-w-0 bg-black overflow-hidden h-full">
         {showHeader && (
           <header className="z-50 w-full p-4 flex justify-between items-center bg-[#0f0f0f]/95 backdrop-blur-2xl transition-all duration-500 fixed top-0 left-0 right-0 border-b border-white/5 shrink-0">
-            {/* Header Branding Left */}
+            {/* Header Branding Left - Strict Alignment */}
             <div className="flex items-center gap-3 ml-2">
               <WorkspaceLogo src="/favicon-96x96.png" fallback={FALLBACK_FAVICON} className="w-8 h-8 object-contain rounded-md" />
               <div className="hidden sm:flex flex-col">
@@ -349,12 +400,11 @@ function App() {
 
             <div className="flex-1 max-w-3xl flex items-center gap-3 px-4">
               <div className="relative flex-1">
-                <input type="text" value={urlInput} onChange={e => setUrlInput(e.target.value)} placeholder="Enter video link to start intentional session..." className="w-full bg-[#121212] border border-white/10 text-white px-5 py-2.5 rounded-full text-sm outline-none focus:border-primary transition-all" />
-                <button onClick={() => { const id = extractYoutubeId(urlInput); if(id) { setIsGateOpen(false); setVideoFinished(false); } }} className="absolute right-1.5 top-1.5 bottom-1.5 px-4 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-full flex items-center gap-2 font-bold uppercase tracking-widest text-[10px]">Analyze <Zap size={14} className="text-primary" /></button>
+                <input type="text" value={urlInput} onChange={e => setUrlInput(e.target.value)} placeholder="Enter video link to start intentional session..." className="w-full bg-[#121212] border border-white/10 text-white px-5 py-2.5 rounded-full text-sm outline-none focus:border-primary transition-all shadow-inner" />
+                <button onClick={() => { const id = extractYoutubeId(urlInput); if(id) { setIsGateOpen(false); setVideoFinished(false); } }} className="absolute right-1.5 top-1.5 bottom-1.5 px-4 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-full flex items-center gap-2 font-bold uppercase tracking-widest text-[10px] transition-colors">Analyze <Zap size={14} className="text-primary" /></button>
               </div>
             </div>
 
-            {/* Header Branding Right (Optional, can be user profile or another logo) */}
             <div className="flex items-center gap-3 mr-2">
                <WorkspaceLogo src="/favicon-96x96.png" fallback={FALLBACK_FAVICON} className="w-8 h-8 object-contain rounded-md opacity-50" />
             </div>
@@ -398,6 +448,7 @@ function App() {
                     </div>
                   )}
                   <div className="relative inline-block">
+                    {/* Intent Protocol Logo - Strict Alignment */}
                     <WorkspaceLogo src={PROTOCOL_ICON} fallback={PROTOCOL_ICON} className={`w-32 h-32 mx-auto transition-all duration-500 ${isRecordingIntent ? 'scale-110 drop-shadow-[0_0_40px_rgba(225,0,255,0.8)]' : 'drop-shadow-[0_0_20px_rgba(225,0,255,0.6)]'}`} />
                     {isRecordingIntent && <div className="absolute inset-0 border-4 border-primary rounded-full animate-ping opacity-20" />}
                   </div>
@@ -453,12 +504,10 @@ function App() {
                 onRewind={() => {
                   const newTime = Math.max(0, playerInstance.getCurrentTime() - 10);
                   playerInstance?.seekTo(newTime);
-                  setPlayed(newTime / (duration || 1));
                 }}
                 onFastForward={() => {
                   const newTime = Math.min(duration, playerInstance.getCurrentTime() + 10);
                   playerInstance?.seekTo(newTime);
-                  setPlayed(newTime / (duration || 1));
                 }}
                 onToggleFullscreen={() => containerRef.current?.requestFullscreen()}
                 onAddToList={() => setShowPlaylistPicker(true)}
@@ -473,7 +522,7 @@ function App() {
                   <div className="absolute inset-0 border-2 border-emerald-500 rounded-full animate-ping opacity-10" />
                 </div>
                 <h2 className="text-6xl font-black mb-4 tracking-tighter text-white">Deep Work Success</h2>
-                <p className="text-zinc-500 mb-12 text-lg max-w-lg">You maintained intentional focus for this session. Your notes have been preserved.</p>
+                <p className="text-zinc-500 mb-12 text-lg max-w-lg">You maintained intentional focus for this session. Your progress and notes have been preserved.</p>
                 <div className="flex gap-6">
                   <button onClick={() => { setVideoFinished(false); playerInstance?.playVideo(); }} className="px-12 py-5 bg-white/5 text-white rounded-full font-bold hover:bg-white/10 transition-all active:scale-95 border border-white/10 uppercase tracking-widest text-[11px]"><RotateCcw size={18} className="inline mr-2" /> Resume Flow</button>
                   <button onClick={() => { setIsGateOpen(false); setUrlInput(''); setIsFocusing(false); setIsCinemaMode(false); }} className="px-12 py-5 bg-primary text-white rounded-full font-bold shadow-[0_0_40px_rgba(225,0,255,0.5)] hover:bg-primaryHover transition-all active:scale-95 uppercase tracking-widest text-[11px]">End Workspace</button>
@@ -483,6 +532,7 @@ function App() {
 
             {!activeVideoId && (
               <div className="text-center p-12 animate-fade-in flex flex-col items-center">
+                {/* Center Branding - Strict Alignment */}
                 <WorkspaceLogo src="/favicon-96x96.png" fallback={FALLBACK_CENTER_LOGO} className="w-56 h-56 mx-auto mb-10 animate-glow-pulse object-contain" />
                 <h2 className="text-4xl font-black mb-4 tracking-tight text-white">Focus flow. AI guided.</h2>
                 <p className="text-zinc-500 text-lg max-w-md mx-auto leading-relaxed">Passive consumption is the end of growth. State your intention and dive into deep learning.</p>
