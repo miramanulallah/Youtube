@@ -1,5 +1,7 @@
 {
   "name": "YouTube Premium Workspace",
   "description": "High-performance intentional workspace for YouTube content. Zero-distraction mode enabled.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "microphone"
+  ]
 }

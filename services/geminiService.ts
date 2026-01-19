@@ -1,8 +1,10 @@
 
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
+
+const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const evaluateIntent = async (videoUrl: string, intent: string): Promise<{ isWorthy: boolean; reasoning: string; category: string }> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = getAI();
   const prompt = `
     User is using a high-performance YouTube workspace to stay intentional.
     They are watching: ${videoUrl}
@@ -31,7 +33,7 @@ export const evaluateIntent = async (videoUrl: string, intent: string): Promise<
       contents: prompt,
       config: {
         responseMimeType: "application/json",
-        systemInstruction: "You are an Intentionality Coach. You are not a gatekeeper. You help users name their intentions for any activity. You are supportive and professional.",
+        systemInstruction: "You are an Intentionality Coach. You help users name their intentions. Be supportive and professional.",
       }
     });
     const parsed = JSON.parse(response.text || "{}");
@@ -51,27 +53,63 @@ export const generateStudyAid = async (
   userNotes: string, 
   mode: 'plan' | 'quiz' | 'summary'
 ): Promise<string> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = getAI();
   
-  let prompt = "";
-  if (mode === 'plan') {
-    prompt = `Create a high-intensity study plan for "${videoTitle}". 3 core objectives.`;
-  } else if (mode === 'quiz') {
-    prompt = `3 challenging questions about "${videoTitle}".`;
-  } else if (mode === 'summary') {
-    prompt = `Refine these notes for long-term retention: "${userNotes}" from "${videoTitle}".`;
-  }
+  const prompt = mode === 'plan' 
+    ? `Create a high-intensity study plan for "${videoTitle}". 3 core objectives.`
+    : mode === 'quiz'
+    ? `3 challenging questions about "${videoTitle}".`
+    : `Refine these notes for long-term retention: "${userNotes}" from "${videoTitle}".`;
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3-pro-preview',
       contents: prompt,
       config: {
-        systemInstruction: "You are a master educator. Plain text only. No markdown.",
+        thinkingConfig: { thinkingBudget: 32768 },
+        systemInstruction: "You are a master educator. Provide deep, refined insights. Use a professional, minimalist style.",
       }
     });
     return response.text || "No response.";
   } catch (error) {
     return "Error generating aid.";
+  }
+};
+
+export const transcribeAudio = async (base64Audio: string): Promise<string> => {
+  const ai = getAI();
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: [
+        {
+          inlineData: {
+            mimeType: 'audio/wav',
+            data: base64Audio,
+          },
+        },
+        { text: "Transcribe this audio exactly. Just the text, no conversational filler." },
+      ],
+    });
+    return response.text?.trim() || "";
+  } catch (error) {
+    console.error("Transcription error:", error);
+    return "";
+  }
+};
+
+export const quickChat = async (message: string, context: string): Promise<string> => {
+  const ai = getAI();
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash-lite-latest',
+      contents: `Context: ${context}\n\nUser: ${message}`,
+      config: {
+        systemInstruction: "You are a fast-responding workspace assistant. Keep answers brief and helpful.",
+      }
+    });
+    return response.text || "Assistant unavailable.";
+  } catch (error) {
+    return "Error connecting to AI.";
   }
 };

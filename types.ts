@@ -4,12 +4,18 @@ export interface VideoHistoryItem {
   url: string;
   title: string;
   author?: string; // Channel name
+  thumbnailUrl?: string;
   lastPlayed: number; // timestamp
   progress: number; // seconds
   duration: number; // seconds
   completed: boolean;
   notes: string;
   category?: string; // AI categorized intent
+}
+
+export interface ChatMessage {
+  role: 'user' | 'model' | 'thought';
+  text: string;
 }
 
 export interface AIResponse {
@@ -21,4 +27,9 @@ export enum TabView {
   PLAYER = 'PLAYER',
   HISTORY = 'HISTORY',
   AI_STUDIO = 'AI_STUDIO',
+}
+
+export enum SidebarView {
+  HISTORY = 'HISTORY',
+  WATCH_LATER = 'WATCH_LATER',
 }
