@@ -37,6 +37,7 @@ function App() {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [sidebarView, setSidebarView] = useState<SidebarView>(SidebarView.HISTORY);
   const [isEvaluating, setIsEvaluating] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const [isGateOpen, setIsGateOpen] = useState(false);
   const [videoFinished, setVideoFinished] = useState(false);
   const [showHeaderMenu, setShowHeaderMenu] = useState(false);
@@ -117,12 +118,12 @@ function App() {
   const updateMetadata = useCallback((vd: any, dur: number) => {
     if (!vd || !vd.title) return;
     const vidId = vd.video_id;
-    const finalTitle = (intentRef.current ? `[${intentRef.current}] ` : "") + vd.title;
+    const youtubeTitle = vd.title;
 
     setCurrentVideo(prev => {
       const updated = { 
         ...prev!, 
-        title: finalTitle, 
+        title: youtubeTitle, 
         author: vd.author, 
         duration: dur, 
         thumbnailUrl: fetchThumbnail(vidId) 
@@ -188,11 +189,10 @@ function App() {
   }, [onPlayerReady, onPlayerStateChange]);
 
   const startSession = (id: string, category: string, initialIntent: string = "") => {
-    intentRef.current = initialIntent ? (initialIntent.length > 20 ? initialIntent.substring(0, 20) + "..." : initialIntent) : "";
     const newItem: VideoHistoryItem = {
       id: crypto.randomUUID(),
       url: `https://www.youtube.com/watch?v=${id}`,
-      title: 'Focus Session',
+      title: 'YouTube Video', // Will be updated by metadata call
       thumbnailUrl: fetchThumbnail(id),
       lastPlayed: Date.now(),
       progress: 0,
@@ -230,6 +230,7 @@ function App() {
         audioChunksRef.current = [];
         recorder.ondataavailable = (e) => audioChunksRef.current.push(e.data);
         recorder.onstop = async () => {
+          setIsTranscribing(true);
           const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
           const reader = new FileReader();
           reader.readAsDataURL(audioBlob);
@@ -237,6 +238,7 @@ function App() {
             const base64Audio = (reader.result as string).split(',')[1];
             const transcription = await transcribeAudio(base64Audio);
             if (transcription) setIntentInput(prev => prev + (prev ? " " : "") + transcription);
+            setIsTranscribing(false);
           };
         };
         recorder.start();
@@ -249,13 +251,13 @@ function App() {
   };
 
   const handleSaveWatchLater = () => {
-    const id = extractYoutubeId(urlInput);
+    const id = extractYoutubeId(urlInput) || (currentVideo ? extractYoutubeId(currentVideo.url) : null);
     if (!id) return;
     if (!watchLater.some(i => extractYoutubeId(i.url) === id)) {
       setWatchLater(prev => [{
         id: crypto.randomUUID(),
         url: `https://www.youtube.com/watch?v=${id}`,
-        title: 'Saved Video',
+        title: currentVideo?.title || 'Saved Video',
         thumbnailUrl: fetchThumbnail(id),
         lastPlayed: Date.now(),
         progress: 0,
@@ -266,10 +268,11 @@ function App() {
       }, ...prev]);
     }
     setShowHeaderMenu(false);
+    setShowPlaylistPicker(false);
   };
 
   const handleSaveToPlaylist = (playlistId: string) => {
-    const vidId = extractYoutubeId(urlInput);
+    const vidId = extractYoutubeId(urlInput) || (currentVideo ? extractYoutubeId(currentVideo.url) : null);
     if (!vidId) return;
     setPlaylists(prev => prev.map(p => (p.id === playlistId && !p.videoIds.includes(vidId)) ? { ...p, videoIds: [...p.videoIds, vidId] } : p));
     setShowPlaylistPicker(false);
@@ -344,7 +347,12 @@ function App() {
 
         {showPlaylistPicker && (
           <div className="fixed inset-0 z-[500] flex items-center justify-center bg-black/80 backdrop-blur-md">
-            <div className="w-80 bg-[#121212] border border-white/10 rounded-2xl shadow-2xl p-4 animate-fade-in">
+            <div className="w-80 bg-[#121212] border border-white/10 rounded-2xl shadow-2xl p-4 animate-fade-in relative">
+              {isTranscribing && (
+                <div className="absolute -top-12 left-0 right-0 text-center animate-pulse">
+                   <span className="bg-primary px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest text-white shadow-xl">Synthesizing Voice...</span>
+                </div>
+              )}
               <div className="flex justify-between items-center mb-4 border-b border-white/5 pb-2">
                 <h3 className="text-xs font-bold uppercase tracking-widest text-primary">Target List</h3>
                 <button onClick={() => setShowPlaylistPicker(false)} className="text-zinc-500 hover:text-white transition-colors"><X size={16} /></button>
@@ -376,6 +384,12 @@ function App() {
                   <div className="relative">
                     <textarea value={intentInput} onChange={e => setIntentInput(e.target.value)} placeholder="State your purpose..." className="w-full bg-[#181818] border border-white/10 rounded-xl p-5 text-sm text-white focus:border-primary outline-none min-h-[120px] resize-none transition-colors" />
                     <button onClick={handleMicIntent} className={`absolute bottom-4 right-4 p-2.5 rounded-full transition-all ${isRecordingIntent ? 'bg-red-500 animate-pulse text-white shadow-lg shadow-red-500/20' : 'bg-zinc-800 text-zinc-400'}`}><Mic size={18} /></button>
+                    {isTranscribing && (
+                      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-black/60 backdrop-blur px-6 py-3 rounded-full flex items-center gap-2 border border-primary/20">
+                        <Loader2 className="animate-spin text-primary" size={16} />
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-primary">Transcribing...</span>
+                      </div>
+                    )}
                   </div>
                   <div className="flex gap-3">
                     <button type="button" onClick={() => { const id = extractYoutubeId(urlInput); if(id) startSession(id, "Quick Session"); }} className="flex-1 py-4 bg-zinc-800 hover:bg-zinc-700 text-white rounded-full font-bold uppercase text-xs tracking-widest transition-all active:scale-95">Skip</button>

@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { generateStudyAid, quickChat, transcribeAudio } from '../services/geminiService';
-import { Sparkles, BookOpen, ScrollText, Loader2, Target, Mic, Send, Bot, User } from 'lucide-react';
+import { Sparkles, BookOpen, ScrollText, Loader2, Target, Mic, Send, Bot, User, Waveform } from 'lucide-react';
 import { ChatMessage } from '../types';
 
 interface AIStudioProps {
@@ -13,6 +13,7 @@ interface AIStudioProps {
 export const AIStudio: React.FC<AIStudioProps> = ({ currentTitle, notes, onNotesChange }) => {
   const [loading, setLoading] = useState(false);
   const [chatLoading, setChatLoading] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const [aiOutput, setAiOutput] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'notes' | 'ai' | 'chat'>('notes');
   const [isRecording, setIsRecording] = useState(false);
@@ -26,7 +27,7 @@ export const AIStudio: React.FC<AIStudioProps> = ({ currentTitle, notes, onNotes
     if (activeTab === 'chat') {
       chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [chatHistory, activeTab]);
+  }, [chatHistory, activeTab, chatLoading]);
 
   const handleGenerate = async (mode: 'plan' | 'quiz' | 'summary') => {
     if (!currentTitle) return;
@@ -37,37 +38,45 @@ export const AIStudio: React.FC<AIStudioProps> = ({ currentTitle, notes, onNotes
     setLoading(false);
   };
 
-  const handleMicToggle = async () => {
-    if (isRecording) {
-      mediaRecorderRef.current?.stop();
-      setIsRecording(false);
-    } else {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const recorder = new MediaRecorder(stream);
-        audioChunksRef.current = [];
-        recorder.ondataavailable = (e) => audioChunksRef.current.push(e.data);
-        recorder.onstop = async () => {
-          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
-          const reader = new FileReader();
-          reader.readAsDataURL(audioBlob);
-          reader.onloadend = async () => {
-            const base64Audio = (reader.result as string).split(',')[1];
-            const transcription = await transcribeAudio(base64Audio);
-            if (transcription) onNotesChange(notes + (notes ? " " : "") + transcription);
-          };
+  const startRecording = async (target: 'notes' | 'chat') => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      audioChunksRef.current = [];
+      recorder.ondataavailable = (e) => audioChunksRef.current.push(e.data);
+      recorder.onstop = async () => {
+        setIsTranscribing(true);
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+        const reader = new FileReader();
+        reader.readAsDataURL(audioBlob);
+        reader.onloadend = async () => {
+          const base64Audio = (reader.result as string).split(',')[1];
+          const transcription = await transcribeAudio(base64Audio);
+          if (transcription) {
+            if (target === 'notes') {
+              onNotesChange(notes + (notes ? " " : "") + transcription);
+            } else {
+              setChatInput(prev => prev + (prev ? " " : "") + transcription);
+            }
+          }
+          setIsTranscribing(false);
         };
-        recorder.start();
-        mediaRecorderRef.current = recorder;
-        setIsRecording(true);
-      } catch (err) {
-        console.error("Mic access denied", err);
-      }
+      };
+      recorder.start();
+      mediaRecorderRef.current = recorder;
+      setIsRecording(true);
+    } catch (err) {
+      console.error("Mic access denied", err);
     }
   };
 
-  const handleChatSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const stopRecording = () => {
+    mediaRecorderRef.current?.stop();
+    setIsRecording(false);
+  };
+
+  const handleChatSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!chatInput.trim() || chatLoading) return;
     const userMsg = chatInput.trim();
     setChatInput('');
@@ -97,20 +106,29 @@ export const AIStudio: React.FC<AIStudioProps> = ({ currentTitle, notes, onNotes
       </div>
 
       <div className="flex-1 flex flex-col min-h-0 relative overflow-hidden bg-black/20">
+        {isTranscribing && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-primary/90 text-white text-[10px] font-bold uppercase tracking-widest px-4 py-2 rounded-full shadow-2xl flex items-center gap-2 animate-bounce">
+            <Loader2 size={12} className="animate-spin" /> Transcribing Audio...
+          </div>
+        )}
+
         {activeTab === 'notes' && (
-          <div className="flex-1 flex flex-col relative">
+          <div className="flex-1 flex flex-col relative min-h-0">
             <textarea
-              className="flex-1 bg-transparent p-6 text-sm text-zinc-300 focus:outline-none resize-none font-sans leading-relaxed placeholder:text-zinc-600"
+              className="flex-1 bg-transparent p-6 text-sm text-zinc-300 focus:outline-none resize-none font-sans leading-relaxed placeholder:text-zinc-600 custom-scrollbar"
               placeholder="Start drafting your synthesis..."
               value={notes}
               onChange={(e) => onNotesChange(e.target.value)}
             />
-            <button 
-              onClick={handleMicToggle}
-              className={`absolute bottom-6 right-6 p-4 rounded-full transition-all shadow-xl ${isRecording ? 'bg-red-500 animate-pulse text-white scale-110' : 'bg-primary text-white hover:scale-105'}`}
-            >
-              <Mic size={20} />
-            </button>
+            <div className="absolute bottom-6 right-6 flex flex-col items-center gap-2">
+              {isRecording && <div className="flex gap-1 mb-2"><div className="w-1 h-4 bg-primary animate-pulse" /><div className="w-1 h-6 bg-primary animate-pulse delay-75" /><div className="w-1 h-4 bg-primary animate-pulse delay-150" /></div>}
+              <button 
+                onClick={() => isRecording ? stopRecording() : startRecording('notes')}
+                className={`p-4 rounded-full transition-all shadow-xl ${isRecording ? 'bg-red-500 text-white scale-110' : 'bg-primary text-white hover:scale-105'}`}
+              >
+                <Mic size={20} />
+              </button>
+            </div>
           </div>
         )}
 
@@ -119,7 +137,7 @@ export const AIStudio: React.FC<AIStudioProps> = ({ currentTitle, notes, onNotes
             {loading ? (
               <div className="flex flex-col items-center justify-center h-full gap-4">
                 <Loader2 className="animate-spin text-primary" size={32} />
-                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Synthesizing...</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Synthesizing Insights...</span>
               </div>
             ) : aiOutput ? (
               <div className="prose prose-invert max-w-none text-sm text-zinc-300 leading-relaxed whitespace-pre-wrap animate-fade-in">{aiOutput}</div>
@@ -135,7 +153,7 @@ export const AIStudio: React.FC<AIStudioProps> = ({ currentTitle, notes, onNotes
               {chatHistory.length === 0 && (
                 <div className="flex flex-col items-center justify-center h-full opacity-20 text-center">
                   <Bot size={48} />
-                  <p className="mt-4 text-[10px] font-bold uppercase tracking-widest">Assistant Ready</p>
+                  <p className="mt-4 text-[10px] font-bold uppercase tracking-widest">Contextual Assistant Ready</p>
                 </div>
               )}
               {chatHistory.map((msg, i) => (
@@ -151,20 +169,29 @@ export const AIStudio: React.FC<AIStudioProps> = ({ currentTitle, notes, onNotes
                 <div className="flex gap-3 animate-pulse">
                   <Bot size={16} className="text-blue-400 shrink-0 mt-1" />
                   <div className="bg-white/5 text-zinc-500 p-3 rounded-2xl rounded-tl-none text-[10px] uppercase font-bold tracking-widest border border-white/5 flex items-center gap-2">
-                    <Loader2 size={12} className="animate-spin" /> Assistant is thinking...
+                    <Loader2 size={12} className="animate-spin" /> AI is thinking...
                   </div>
                 </div>
               )}
               <div ref={chatEndRef} />
             </div>
-            <form onSubmit={handleChatSubmit} className="p-4 bg-[#0f0f0f] border-t border-white/5 flex gap-2 shrink-0">
-              <input 
-                disabled={chatLoading}
-                value={chatInput} 
-                onChange={e => setChatInput(e.target.value)} 
-                placeholder="Ask about the content..." 
-                className="flex-1 bg-black/40 border border-white/10 rounded-full px-5 py-3 text-sm text-white focus:outline-none focus:border-primary transition-colors disabled:opacity-50" 
-              />
+            <form onSubmit={handleChatSubmit} className="p-4 bg-[#0f0f0f] border-t border-white/5 flex items-center gap-2 shrink-0">
+              <div className="relative flex-1">
+                <input 
+                  disabled={chatLoading}
+                  value={chatInput} 
+                  onChange={e => setChatInput(e.target.value)} 
+                  placeholder="Ask about the content..." 
+                  className="w-full bg-black/40 border border-white/10 rounded-full px-5 py-3 pr-12 text-sm text-white focus:outline-none focus:border-primary transition-colors disabled:opacity-50" 
+                />
+                <button 
+                  type="button"
+                  onClick={() => isRecording ? stopRecording() : startRecording('chat')}
+                  className={`absolute right-2 top-1.5 p-2 rounded-full transition-all ${isRecording ? 'bg-red-500 text-white animate-pulse' : 'text-zinc-500 hover:text-primary'}`}
+                >
+                  <Mic size={18} />
+                </button>
+              </div>
               <button 
                 type="submit" 
                 disabled={chatLoading || !chatInput.trim()}
@@ -180,15 +207,15 @@ export const AIStudio: React.FC<AIStudioProps> = ({ currentTitle, notes, onNotes
       <div className="p-4 border-t border-white/5 bg-white/[0.02] grid grid-cols-3 gap-3 shrink-0">
         <button onClick={() => handleGenerate('plan')} disabled={loading} className="flex flex-col items-center p-3 rounded-xl bg-zinc-900/50 hover:bg-zinc-800 border border-white/5 transition-all group active:scale-95">
           <BookOpen size={16} className="text-emerald-400 mb-1 group-hover:scale-110 transition-transform" />
-          <span className="text-[8px] uppercase font-bold text-zinc-500">Plan</span>
+          <span className="text-[8px] uppercase font-bold text-zinc-500">Study Plan</span>
         </button>
         <button onClick={() => handleGenerate('quiz')} disabled={loading} className="flex flex-col items-center p-3 rounded-xl bg-zinc-900/50 hover:bg-zinc-800 border border-white/5 transition-all group active:scale-95">
           <Sparkles size={16} className="text-amber-400 mb-1 group-hover:scale-110 transition-transform" />
-          <span className="text-[8px] uppercase font-bold text-zinc-500">Quiz</span>
+          <span className="text-[8px] uppercase font-bold text-zinc-500">Quiz Me</span>
         </button>
         <button onClick={() => handleGenerate('summary')} disabled={loading} className="flex flex-col items-center p-3 rounded-xl bg-zinc-900/50 hover:bg-zinc-800 border border-white/5 transition-all group active:scale-95">
           <ScrollText size={16} className="text-blue-400 mb-1 group-hover:scale-110 transition-transform" />
-          <span className="text-[8px] uppercase font-bold text-zinc-500">Refine</span>
+          <span className="text-[8px] uppercase font-bold text-zinc-500">Summarize</span>
         </button>
       </div>
     </div>

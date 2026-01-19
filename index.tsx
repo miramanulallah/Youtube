@@ -1,5 +1,5 @@
 
-import React, { ReactNode, ErrorInfo } from 'react';
+import React, { ReactNode, ErrorInfo, Component } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 
@@ -12,31 +12,31 @@ interface State {
   error: Error | null;
 }
 
-// Fixed ErrorBoundary by extending React.Component<Props, State> directly.
-// This ensures TypeScript correctly recognizes 'this.props' and 'this.state' through inheritance.
-class ErrorBoundary extends React.Component<Props, State> {
-  // Initializing state as a class property ensures it is correctly typed and associated with the component instance.
+// ErrorBoundary captures errors from children and provides a fallback UI.
+// Explicitly extending the Component class from React with generic Props and State types
+// ensures that TypeScript correctly inherits 'this.props' and 'this.state'.
+class ErrorBoundary extends Component<Props, State> {
+  // Initializing state directly as a property. 
+  // TypeScript correctly associates this with the State generic parameter.
   state: State = {
     hasError: false,
     error: null
   };
 
-  constructor(props: Props) {
-    super(props);
-  }
-
-  // This static method is called during the render phase to update state after an error is thrown.
+  // Static method used to update state after an error is detected.
+  // This is called during the render phase.
   static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error };
   }
 
-  // This lifecycle method is called during the commit phase for error reporting.
+  // Lifecycle method called after an error is caught for reporting or logging.
+  // This is called during the commit phase.
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error("Uncaught error:", error, errorInfo);
   }
 
   render() {
-    // Accessing state which is now correctly inherited from React.Component<Props, State>.
+    // If an error occurred, render the designated fallback UI.
     if (this.state.hasError) {
       return (
         <div style={{ padding: 20, background: '#09090b', color: '#ef4444', height: '100vh', fontFamily: 'monospace' }}>
@@ -46,8 +46,10 @@ class ErrorBoundary extends React.Component<Props, State> {
       );
     }
 
-    // Accessing props which is now correctly inherited from React.Component<Props, State>.
-    return this.props.children;
+    // Return the child components. 
+    // Fallback to null to satisfy the ReactNode return type requirement if children are undefined.
+    // Inheritance from Component ensures 'this.props' is available.
+    return this.props.children || null;
   }
 }
 
