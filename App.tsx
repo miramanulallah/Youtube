@@ -278,14 +278,12 @@ function App() {
 
   const activeVideoId = extractYoutubeId(urlInput);
   const isProtocolActive = activeVideoId && !isGateOpen;
-
-  // Header should be unmounted when in protocol or session for total focus
   const showHeader = !isProtocolActive && !isCinemaMode && !isGateOpen;
 
   return (
-    <div ref={containerRef} className="h-screen w-screen bg-black text-[#f1f1f1] flex overflow-hidden font-sans">
+    <div ref={containerRef} className="h-screen w-screen bg-black text-[#f1f1f1] flex overflow-hidden font-sans select-none">
       {!isCinemaMode && (
-        <aside className="w-80 flex flex-col p-5 border-r border-white/5 bg-[#0f0f0f] h-full relative z-[100] animate-in slide-in-from-left duration-300 overflow-hidden">
+        <aside className="w-80 flex flex-col p-5 border-r border-white/5 bg-[#0f0f0f] h-full shrink-0 animate-in slide-in-from-left duration-300 overflow-hidden">
           <div className="mb-8 flex items-center gap-3 px-2 shrink-0">
             <img src={TOP_LOGO} className="w-10 h-10 object-contain" alt="Logo" />
             <div className="min-w-0">
@@ -304,7 +302,6 @@ function App() {
             </div>
           </div>
 
-          {/* min-h-0 is the standard flexbox fix for scrollable areas */}
           <div className="flex-1 min-h-0 relative">
             <div className="absolute inset-0">
               <HistoryPanel 
@@ -322,9 +319,9 @@ function App() {
         </aside>
       )}
 
-      <div className="flex-1 flex flex-col relative min-w-0 bg-black">
+      <div className="flex-1 flex flex-col relative min-w-0 bg-black overflow-hidden h-full">
         {showHeader && (
-          <header className="z-50 w-full p-4 flex justify-center bg-[#0f0f0f]/95 backdrop-blur-2xl transition-all duration-500 fixed top-0 left-0 right-0 border-b border-white/5 translate-y-0 opacity-100">
+          <header className="z-50 w-full p-4 flex justify-center bg-[#0f0f0f]/95 backdrop-blur-2xl transition-all duration-500 fixed top-0 left-0 right-0 border-b border-white/5 shrink-0">
             <div className="w-full max-w-3xl flex items-center gap-3">
               <div className="relative flex-1">
                 <input type="text" value={urlInput} onChange={e => setUrlInput(e.target.value)} placeholder="Paste YouTube link..." className="w-full bg-[#121212] border border-white/10 text-white px-5 py-2.5 rounded-full text-sm outline-none focus:border-primary transition-all" />
@@ -332,11 +329,11 @@ function App() {
               </div>
               {activeVideoId && (
                 <div className="relative">
-                  <button type="button" onClick={() => setShowHeaderMenu(!showHeaderMenu)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-full"><MoreVertical size={18} /></button>
+                  <button type="button" onClick={() => setShowHeaderMenu(!showHeaderMenu)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-full transition-colors"><MoreVertical size={18} /></button>
                   {showHeaderMenu && (
-                    <div className="absolute right-0 top-12 w-48 bg-[#181818] border border-white/10 rounded-xl shadow-2xl py-1 z-50 animate-fade-in">
-                      <button onClick={handleSaveWatchLater} className="w-full text-left px-4 py-3 text-xs font-bold uppercase text-zinc-300 hover:bg-white/5 flex items-center gap-2"><Clock size={14} /> Save for later</button>
-                      <button onClick={() => setShowPlaylistPicker(true)} className="w-full text-left px-4 py-3 text-xs font-bold uppercase text-zinc-300 hover:bg-white/5 flex items-center gap-2 border-t border-white/5"><PlusSquare size={14} className="text-primary" /> Save in Custom</button>
+                    <div className="absolute right-0 top-12 w-48 bg-[#181818] border border-white/10 rounded-xl shadow-2xl py-1 z-50 animate-fade-in overflow-hidden">
+                      <button onClick={handleSaveWatchLater} className="w-full text-left px-4 py-3 text-xs font-bold uppercase text-zinc-300 hover:bg-white/5 flex items-center gap-2 transition-colors"><Clock size={14} /> Save for later</button>
+                      <button onClick={() => setShowPlaylistPicker(true)} className="w-full text-left px-4 py-3 text-xs font-bold uppercase text-zinc-300 hover:bg-white/5 flex items-center gap-2 border-t border-white/5 transition-colors"><PlusSquare size={14} className="text-primary" /> Save in Custom</button>
                     </div>
                   )}
                 </div>
@@ -345,34 +342,51 @@ function App() {
           </header>
         )}
 
+        {showPlaylistPicker && (
+          <div className="fixed inset-0 z-[500] flex items-center justify-center bg-black/80 backdrop-blur-md">
+            <div className="w-80 bg-[#121212] border border-white/10 rounded-2xl shadow-2xl p-4 animate-fade-in">
+              <div className="flex justify-between items-center mb-4 border-b border-white/5 pb-2">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-primary">Target List</h3>
+                <button onClick={() => setShowPlaylistPicker(false)} className="text-zinc-500 hover:text-white transition-colors"><X size={16} /></button>
+              </div>
+              <div className="max-h-60 overflow-y-auto custom-scrollbar space-y-1">
+                <button onClick={handleSaveWatchLater} className="w-full text-left px-3 py-3 text-xs text-zinc-300 hover:bg-white/10 rounded-lg transition-all flex items-center gap-2 mb-2 font-bold uppercase tracking-wider"><Clock size={14} className="text-primary" /> Watch Later</button>
+                {playlists.length === 0 ? <p className="text-[10px] text-zinc-600 text-center py-4">No custom lists found.</p> : playlists.map(p => (
+                  <button key={p.id} onClick={() => handleSaveToPlaylist(p.id)} className="w-full text-left px-3 py-2.5 text-xs text-zinc-400 hover:bg-white/5 rounded-lg transition-all">{p.name}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         <main 
           onMouseMove={() => { 
             setControlsVisible(true); 
             if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
             if (isPlaying) controlsTimeoutRef.current = setTimeout(() => setControlsVisible(false), 3000) as any;
           }}
-          className="flex-1 flex gap-0 transition-all duration-500 pt-0"
+          className="flex-1 flex gap-0 transition-all duration-500 pt-0 min-h-0 overflow-hidden"
         >
-          <div className="flex-1 relative bg-black overflow-hidden flex items-center justify-center">
+          <div className="flex-1 relative bg-black overflow-hidden flex items-center justify-center h-full">
             {isProtocolActive && (
               <div className="absolute inset-0 z-[150] flex items-center justify-center bg-[#0f0f0f] p-8 animate-fade-in">
                 <div className="max-w-md w-full text-center space-y-6">
                   <img src={PROTOCOL_ICON} className="w-32 h-32 mx-auto drop-shadow-[0_0_20px_rgba(225,0,255,0.6)]" alt="Protocol" />
                   <h2 className="text-2xl font-bold uppercase tracking-tight">Intentional Protocol</h2>
                   <div className="relative">
-                    <textarea value={intentInput} onChange={e => setIntentInput(e.target.value)} placeholder="State your purpose..." className="w-full bg-[#181818] border border-white/10 rounded-xl p-5 text-sm text-white focus:border-primary outline-none min-h-[120px] resize-none" />
-                    <button onClick={handleMicIntent} className={`absolute bottom-4 right-4 p-2.5 rounded-full ${isRecordingIntent ? 'bg-red-500 animate-pulse text-white' : 'bg-zinc-800 text-zinc-400'}`}><Mic size={18} /></button>
+                    <textarea value={intentInput} onChange={e => setIntentInput(e.target.value)} placeholder="State your purpose..." className="w-full bg-[#181818] border border-white/10 rounded-xl p-5 text-sm text-white focus:border-primary outline-none min-h-[120px] resize-none transition-colors" />
+                    <button onClick={handleMicIntent} className={`absolute bottom-4 right-4 p-2.5 rounded-full transition-all ${isRecordingIntent ? 'bg-red-500 animate-pulse text-white shadow-lg shadow-red-500/20' : 'bg-zinc-800 text-zinc-400'}`}><Mic size={18} /></button>
                   </div>
                   <div className="flex gap-3">
-                    <button type="button" onClick={() => { const id = extractYoutubeId(urlInput); if(id) startSession(id, "Quick Session"); }} className="flex-1 py-4 bg-zinc-800 hover:bg-zinc-700 text-white rounded-full font-bold uppercase text-sm transition-all active:scale-95">Skip</button>
-                    <button onClick={handleIntentSubmit} disabled={isEvaluating} className="flex-[2] py-4 bg-white hover:bg-zinc-200 text-black rounded-full font-bold uppercase text-sm flex items-center justify-center gap-2 transition-all active:scale-95 shadow-[0_0_20px_rgba(255,255,255,0.2)]">{isEvaluating ? <Loader2 className="animate-spin" /> : <BrainCircuit size={18} />} Start Session</button>
+                    <button type="button" onClick={() => { const id = extractYoutubeId(urlInput); if(id) startSession(id, "Quick Session"); }} className="flex-1 py-4 bg-zinc-800 hover:bg-zinc-700 text-white rounded-full font-bold uppercase text-xs tracking-widest transition-all active:scale-95">Skip</button>
+                    <button onClick={handleIntentSubmit} disabled={isEvaluating} className="flex-[2] py-4 bg-white hover:bg-zinc-200 text-black rounded-full font-bold uppercase text-xs tracking-widest flex items-center justify-center gap-2 transition-all active:scale-95 shadow-[0_0_20px_rgba(255,255,255,0.2)] disabled:opacity-50">{isEvaluating ? <Loader2 className="animate-spin" /> : <BrainCircuit size={18} />} Secure Access</button>
                   </div>
                 </div>
               </div>
             )}
             
             <div className={`w-full h-full relative ${activeVideoId && isGateOpen && !videoFinished ? 'block' : 'hidden'}`}>
-              <div ref={playerContainerRef} className="w-full h-full scale-[1.05]" />
+              <div ref={playerContainerRef} className="w-full h-full scale-[1.02]" />
             </div>
 
             {activeVideoId && isGateOpen && !videoFinished && (
@@ -395,30 +409,42 @@ function App() {
                   setPlayed(newTime / (duration || 1));
                 }}
                 onToggleFullscreen={() => containerRef.current?.requestFullscreen()}
+                onAddToList={() => setShowPlaylistPicker(true)}
                 visible={controlsVisible || !isPlaying}
               />
             )}
 
             {videoFinished && (
-              <div className="absolute inset-0 z-[200] flex flex-col items-center justify-center bg-black p-12 text-center animate-fade-in">
-                <CheckCircle2 size={80} className="text-emerald-500 mb-8 drop-shadow-[0_0_20px_rgba(16,185,129,0.4)]" />
+              <div className="absolute inset-0 z-[200] flex flex-col items-center justify-center bg-black/95 backdrop-blur-xl p-12 text-center animate-fade-in">
+                <CheckCircle2 size={80} className="text-emerald-500 mb-8 drop-shadow-[0_0_25px_rgba(16,185,129,0.5)]" />
                 <h2 className="text-5xl font-black mb-8 tracking-tighter">Session Refined</h2>
                 <div className="flex gap-4">
-                  <button onClick={() => { setVideoFinished(false); playerInstance?.playVideo(); }} className="px-10 py-4 bg-white/10 text-white rounded-full font-bold hover:bg-white/20 transition-all active:scale-95 border border-white/5"><RotateCcw size={20} className="inline mr-2" /> Replay</button>
-                  <button onClick={() => { setIsGateOpen(false); setUrlInput(''); setIsFocusing(false); setIsCinemaMode(false); }} className="px-10 py-4 bg-primary text-white rounded-full font-bold shadow-[0_0_30px_rgba(225,0,255,0.4)] hover:bg-primary/80 transition-all active:scale-95">Exit Workspace</button>
+                  <button onClick={() => { setVideoFinished(false); playerInstance?.playVideo(); }} className="px-10 py-4 bg-white/10 text-white rounded-full font-bold hover:bg-white/20 transition-all active:scale-95 border border-white/10 uppercase tracking-widest text-xs"><RotateCcw size={18} className="inline mr-2" /> Replay</button>
+                  <button onClick={() => { setIsGateOpen(false); setUrlInput(''); setIsFocusing(false); setIsCinemaMode(false); }} className="px-10 py-4 bg-primary text-white rounded-full font-bold shadow-[0_0_30px_rgba(225,0,255,0.4)] hover:bg-primaryHover transition-all active:scale-95 uppercase tracking-widest text-xs">Exit Workspace</button>
                 </div>
               </div>
             )}
 
             {!activeVideoId && (
               <div className="text-center p-12 animate-fade-in flex flex-col items-center">
-                <img src={CENTER_LOGO} className="w-56 h-56 mx-auto mb-10 animate-glow-pulse" alt="Logo" />
-                <h2 className="text-4xl font-black mb-3 tracking-tight">Ready for Focus</h2>
-                <p className="text-zinc-500 text-sm max-w-sm mx-auto leading-relaxed">Intentionality is performance. Paste a link to begin.</p>
+                <img src={CENTER_LOGO} className="w-48 h-48 mx-auto mb-10 animate-glow-pulse object-contain" alt="Logo" />
+                <h2 className="text-3xl font-black mb-3 tracking-tight">Ready for Focus</h2>
+                <p className="text-zinc-500 text-sm max-w-sm mx-auto leading-relaxed">Intentionality is performance. Paste a YouTube link above to begin your deep session.</p>
               </div>
             )}
           </div>
-          {!isCinemaMode && <div className="w-[420px] hidden xl:flex flex-col h-full shrink-0 border-l border-white/5 animate-in slide-in-from-right duration-300"><AIStudio currentTitle={currentVideo?.title || ''} notes={currentVideo?.notes || ''} onNotesChange={t => { setCurrentVideo(p => p ? {...p, notes: t} : null); setHistory(old => old.map(h => h.id === currentVideo?.id ? {...h, notes: t} : h)); }} /></div>}
+          {!isCinemaMode && (
+            <div className="w-[420px] hidden xl:flex flex-col h-full shrink-0 border-l border-white/5 animate-in slide-in-from-right duration-300 overflow-hidden">
+              <AIStudio 
+                currentTitle={currentVideo?.title || ''} 
+                notes={currentVideo?.notes || ''} 
+                onNotesChange={t => { 
+                  setCurrentVideo(p => p ? {...p, notes: t} : null); 
+                  setHistory(old => old.map(h => h.id === currentVideo?.id ? {...h, notes: t} : h)); 
+                }} 
+              />
+            </div>
+          )}
         </main>
       </div>
     </div>

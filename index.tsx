@@ -1,4 +1,5 @@
-import React, { Component, ReactNode, ErrorInfo } from 'react';
+
+import React, { ReactNode, ErrorInfo } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 
@@ -11,17 +12,17 @@ interface State {
   error: Error | null;
 }
 
-// Fixed ErrorBoundary by extending the explicitly imported Component and ensuring correct generic typing.
-// This resolves the TypeScript errors where 'props' and 'state' were not being recognized through inheritance.
-class ErrorBoundary extends Component<Props, State> {
-  // Initializing state in constructor. The inheritance from Component<Props, State> 
-  // ensures this.props and this.state are correctly typed and recognized through inheritance.
+// Fixed ErrorBoundary by extending React.Component<Props, State> directly.
+// This ensures TypeScript correctly recognizes 'this.props' and 'this.state' through inheritance.
+class ErrorBoundary extends React.Component<Props, State> {
+  // Initializing state as a class property ensures it is correctly typed and associated with the component instance.
+  state: State = {
+    hasError: false,
+    error: null
+  };
+
   constructor(props: Props) {
     super(props);
-    this.state = {
-      hasError: false,
-      error: null
-    };
   }
 
   // This static method is called during the render phase to update state after an error is thrown.
@@ -35,7 +36,7 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   render() {
-    // Accessing this.state which is now properly recognized through inheritance from Component.
+    // Accessing state which is now correctly inherited from React.Component<Props, State>.
     if (this.state.hasError) {
       return (
         <div style={{ padding: 20, background: '#09090b', color: '#ef4444', height: '100vh', fontFamily: 'monospace' }}>
@@ -45,7 +46,7 @@ class ErrorBoundary extends Component<Props, State> {
       );
     }
 
-    // Accessing this.props which is now properly recognized through inheritance from Component.
+    // Accessing props which is now correctly inherited from React.Component<Props, State>.
     return this.props.children;
   }
 }
