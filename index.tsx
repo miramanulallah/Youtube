@@ -1,4 +1,3 @@
-
 import React, { Component, ReactNode, ErrorInfo } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
@@ -12,15 +11,18 @@ interface State {
   error: Error | null;
 }
 
-// Fixed ErrorBoundary by using class property for state and direct Component inheritance.
-// This ensures that 'props' and 'state' are correctly typed and recognized through inheritance,
-// resolving errors where these properties were reported as missing on the ErrorBoundary instance.
+// Fixed ErrorBoundary by extending the explicitly imported Component and ensuring correct generic typing.
+// This resolves the TypeScript errors where 'props' and 'state' were not being recognized through inheritance.
 class ErrorBoundary extends Component<Props, State> {
-  // Initializing state as a class property for better type inference in various environments.
-  public state: State = {
-    hasError: false,
-    error: null
-  };
+  // Initializing state in constructor. The inheritance from Component<Props, State> 
+  // ensures this.props and this.state are correctly typed and recognized through inheritance.
+  constructor(props: Props) {
+    super(props);
+    this.state = {
+      hasError: false,
+      error: null
+    };
+  }
 
   // This static method is called during the render phase to update state after an error is thrown.
   static getDerivedStateFromError(error: Error): State {
@@ -33,7 +35,7 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   render() {
-    // Access state through this.state, which is now properly inherited and typed.
+    // Accessing this.state which is now properly recognized through inheritance from Component.
     if (this.state.hasError) {
       return (
         <div style={{ padding: 20, background: '#09090b', color: '#ef4444', height: '100vh', fontFamily: 'monospace' }}>
@@ -43,7 +45,7 @@ class ErrorBoundary extends Component<Props, State> {
       );
     }
 
-    // Access props through this.props, which is now properly recognized through inheritance.
+    // Accessing this.props which is now properly recognized through inheritance from Component.
     return this.props.children;
   }
 }

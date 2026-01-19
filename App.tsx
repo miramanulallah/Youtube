@@ -144,11 +144,9 @@ function App() {
 
   const onPlayerStateChange = useCallback((e: any) => {
     const YT = (window as any).YT;
-    // CRITICAL FIX: Only trigger ENDED if it's not a seek event
     if (e.data === YT.PlayerState.ENDED) {
       const currentTime = e.target.getCurrentTime();
       const totalDuration = e.target.getDuration();
-      // Ensure we are truly at the end (within 1 second)
       if (Math.abs(totalDuration - currentTime) < 2) {
         setVideoFinished(true); 
         setIsFocusing(false); 
@@ -281,14 +279,14 @@ function App() {
   const activeVideoId = extractYoutubeId(urlInput);
   const isProtocolActive = activeVideoId && !isGateOpen;
 
-  // IMPROVEMENT: Completely unmount header when in protocol or session for total focus
+  // Header should be unmounted when in protocol or session for total focus
   const showHeader = !isProtocolActive && !isCinemaMode && !isGateOpen;
 
   return (
     <div ref={containerRef} className="h-screen w-screen bg-black text-[#f1f1f1] flex overflow-hidden font-sans">
       {!isCinemaMode && (
-        <aside className="w-80 flex flex-col p-5 border-r border-white/5 bg-[#0f0f0f] h-full relative z-[100] animate-in slide-in-from-left duration-300">
-          <div className="mb-8 flex items-center gap-3 px-2">
+        <aside className="w-80 flex flex-col p-5 border-r border-white/5 bg-[#0f0f0f] h-full relative z-[100] animate-in slide-in-from-left duration-300 overflow-hidden">
+          <div className="mb-8 flex items-center gap-3 px-2 shrink-0">
             <img src={TOP_LOGO} className="w-10 h-10 object-contain" alt="Logo" />
             <div className="min-w-0">
               <h1 className="font-bold text-xl leading-none">YouTube</h1>
@@ -296,7 +294,7 @@ function App() {
             </div>
           </div>
           
-          <div className="mb-6 p-4 rounded-xl bg-white/5 border border-white/5">
+          <div className="mb-6 p-4 rounded-xl bg-white/5 border border-white/5 shrink-0">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs text-zinc-400 font-medium">Session Focus</span>
               <span className="text-xs font-mono text-primary">{Math.floor(focusTime / 60)}:{String(focusTime % 60).padStart(2, '0')}</span>
@@ -306,26 +304,27 @@ function App() {
             </div>
           </div>
 
-          <div className="flex-1 overflow-visible">
-            <HistoryPanel 
-              history={history} watchLater={watchLater} playlists={playlists} currentView={sidebarView} onViewChange={setSidebarView}
-              onSelect={i => { setUrlInput(i.url); setIsGateOpen(true); setCurrentVideo(i); setVideoFinished(false); setIsCinemaMode(true); setTimeout(() => loadPlayer(extractYoutubeId(i.url)!), 200); }}
-              onDelete={(id, wl) => wl ? setWatchLater(p => p.filter(i=>i.id!==id)) : setHistory(p => p.filter(i=>i.id!==id))}
-              onRename={(id, t, wl) => wl ? setWatchLater(p => p.map(h=>h.id===id?{...h,title:t}:h)) : setHistory(p => p.map(h=>h.id===id?{...h,title:t}:h))}
-              onCreatePlaylist={(name) => setPlaylists(prev => [...prev, { id: crypto.randomUUID(), name, videoIds: [] }])}
-              onDeletePlaylist={(id) => setPlaylists(prev => prev.filter(p => p.id !== id))}
-              onExport={() => { const b = new Blob([JSON.stringify({history,watchLater,playlists})],{type:'application/json'}); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href=u; a.download='workspace.json'; a.click(); }}
-              onImport={e => { const f = e.target.files?.[0]; if(f){const r=new FileReader(); r.onload=re=>{try{const i=JSON.parse(re.target?.result as string); if(i.history) setHistory(i.history); if(i.watchLater) setWatchLater(i.watchLater); if(i.playlists) setPlaylists(i.playlists);}catch(err){}};r.readAsText(f);}}}
-            />
+          {/* min-h-0 is the standard flexbox fix for scrollable areas */}
+          <div className="flex-1 min-h-0 relative">
+            <div className="absolute inset-0">
+              <HistoryPanel 
+                history={history} watchLater={watchLater} playlists={playlists} currentView={sidebarView} onViewChange={setSidebarView}
+                onSelect={i => { setUrlInput(i.url); setIsGateOpen(true); setCurrentVideo(i); setVideoFinished(false); setIsCinemaMode(true); setTimeout(() => loadPlayer(extractYoutubeId(i.url)!), 200); }}
+                onDelete={(id, wl) => wl ? setWatchLater(p => p.filter(i=>i.id!==id)) : setHistory(p => p.filter(i=>i.id!==id))}
+                onRename={(id, t, wl) => wl ? setWatchLater(p => p.map(h=>h.id===id?{...h,title:t}:h)) : setHistory(p => p.map(h=>h.id===id?{...h,title:t}:h))}
+                onCreatePlaylist={(name) => setPlaylists(prev => [...prev, { id: crypto.randomUUID(), name, videoIds: [] }])}
+                onDeletePlaylist={(id) => setPlaylists(prev => prev.filter(p => p.id !== id))}
+                onExport={() => { const b = new Blob([JSON.stringify({history,watchLater,playlists})],{type:'application/json'}); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href=u; a.download='workspace.json'; a.click(); }}
+                onImport={e => { const f = e.target.files?.[0]; if(f){const r=new FileReader(); r.onload=re=>{try{const i=JSON.parse(re.target?.result as string); if(i.history) setHistory(i.history); if(i.watchLater) setWatchLater(i.watchLater); if(i.playlists) setPlaylists(i.playlists);}catch(err){}};r.readAsText(f);}}}
+              />
+            </div>
           </div>
         </aside>
       )}
 
       <div className="flex-1 flex flex-col relative min-w-0 bg-black">
         {showHeader && (
-          <header 
-            className={`z-50 w-full p-4 flex justify-center bg-[#0f0f0f]/95 backdrop-blur-2xl transition-all duration-500 fixed top-0 left-0 right-0 border-b border-white/5 translate-y-0 opacity-100`}
-          >
+          <header className="z-50 w-full p-4 flex justify-center bg-[#0f0f0f]/95 backdrop-blur-2xl transition-all duration-500 fixed top-0 left-0 right-0 border-b border-white/5 translate-y-0 opacity-100">
             <div className="w-full max-w-3xl flex items-center gap-3">
               <div className="relative flex-1">
                 <input type="text" value={urlInput} onChange={e => setUrlInput(e.target.value)} placeholder="Paste YouTube link..." className="w-full bg-[#121212] border border-white/10 text-white px-5 py-2.5 rounded-full text-sm outline-none focus:border-primary transition-all" />
@@ -336,12 +335,8 @@ function App() {
                   <button type="button" onClick={() => setShowHeaderMenu(!showHeaderMenu)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-full"><MoreVertical size={18} /></button>
                   {showHeaderMenu && (
                     <div className="absolute right-0 top-12 w-48 bg-[#181818] border border-white/10 rounded-xl shadow-2xl py-1 z-50 animate-fade-in">
-                      <button onClick={handleSaveWatchLater} className="w-full text-left px-4 py-3 text-xs font-bold uppercase text-zinc-300 hover:bg-white/5 flex items-center gap-2">
-                        <Clock size={14} /> Save for later
-                      </button>
-                      <button onClick={() => setShowPlaylistPicker(true)} className="w-full text-left px-4 py-3 text-xs font-bold uppercase text-zinc-300 hover:bg-white/5 flex items-center gap-2 border-t border-white/5">
-                        <PlusSquare size={14} className="text-primary" /> Save in Custom
-                      </button>
+                      <button onClick={handleSaveWatchLater} className="w-full text-left px-4 py-3 text-xs font-bold uppercase text-zinc-300 hover:bg-white/5 flex items-center gap-2"><Clock size={14} /> Save for later</button>
+                      <button onClick={() => setShowPlaylistPicker(true)} className="w-full text-left px-4 py-3 text-xs font-bold uppercase text-zinc-300 hover:bg-white/5 flex items-center gap-2 border-t border-white/5"><PlusSquare size={14} className="text-primary" /> Save in Custom</button>
                     </div>
                   )}
                 </div>
@@ -350,29 +345,13 @@ function App() {
           </header>
         )}
 
-        {showPlaylistPicker && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm">
-            <div className="w-80 bg-[#121212] border border-white/10 rounded-2xl shadow-2xl p-4">
-              <div className="flex justify-between items-center mb-4 border-b border-white/5 pb-2">
-                <h3 className="text-xs font-bold uppercase tracking-widest text-primary">Your Playlists</h3>
-                <button onClick={() => setShowPlaylistPicker(false)} className="text-zinc-500 hover:text-white"><X size={16} /></button>
-              </div>
-              <div className="max-h-60 overflow-y-auto custom-scrollbar space-y-1">
-                {playlists.length === 0 ? <p className="text-[10px] text-zinc-600 text-center py-4">No playlists found.</p> : playlists.map(p => (
-                  <button key={p.id} onClick={() => handleSaveToPlaylist(p.id)} className="w-full text-left px-3 py-2.5 text-xs text-zinc-300 hover:bg-white/5 rounded-lg transition-all">{p.name}</button>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
         <main 
           onMouseMove={() => { 
             setControlsVisible(true); 
             if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
             if (isPlaying) controlsTimeoutRef.current = setTimeout(() => setControlsVisible(false), 3000) as any;
           }}
-          className={`flex-1 flex gap-0 transition-all duration-500 pt-0`}
+          className="flex-1 flex gap-0 transition-all duration-500 pt-0"
         >
           <div className="flex-1 relative bg-black overflow-hidden flex items-center justify-center">
             {isProtocolActive && (
@@ -408,12 +387,12 @@ function App() {
                 onRewind={() => {
                   const newTime = Math.max(0, playerInstance.getCurrentTime() - 10);
                   playerInstance?.seekTo(newTime);
-                  setPlayed(newTime / duration);
+                  setPlayed(newTime / (duration || 1));
                 }}
                 onFastForward={() => {
                   const newTime = Math.min(duration, playerInstance.getCurrentTime() + 10);
                   playerInstance?.seekTo(newTime);
-                  setPlayed(newTime / duration);
+                  setPlayed(newTime / (duration || 1));
                 }}
                 onToggleFullscreen={() => containerRef.current?.requestFullscreen()}
                 visible={controlsVisible || !isPlaying}

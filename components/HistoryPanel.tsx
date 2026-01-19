@@ -67,8 +67,8 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({
   };
 
   return (
-    <div className="h-full flex flex-col bg-[#0f0f0f] rounded-xl border border-white/5 overflow-hidden">
-      <div className="p-4 border-b border-white/5 flex justify-between items-center bg-white/5">
+    <div className="flex flex-col h-full bg-[#0f0f0f] rounded-xl border border-white/5 overflow-hidden">
+      <div className="p-4 border-b border-white/5 flex justify-between items-center bg-white/5 shrink-0">
         <div className="flex items-center gap-2">
           <h2 className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
             {selectedPlaylistId ? playlists.find(p => p.id === selectedPlaylistId)?.name : (isWatchLaterView ? 'Watch Later' : 'History')}
@@ -91,7 +91,7 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
         {isWatchLaterView && !selectedPlaylistId && (
-          <div className="mb-6 space-y-3">
+          <div className="mb-6 space-y-3 shrink-0">
             <div className="flex items-center justify-between px-1">
               <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest flex items-center gap-2"><ListMusic size={12} className="text-primary" /> Playlists</span>
               <button onClick={() => setIsCreatingPlaylist(!isCreatingPlaylist)} className="p-1 bg-white/5 hover:bg-primary/20 rounded-md text-zinc-400 hover:text-primary transition-all"><Plus size={14} /></button>
@@ -120,7 +120,7 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({
         )}
 
         {selectedPlaylistId && (
-          <button onClick={() => setSelectedPlaylistId(null)} className="text-[10px] font-bold text-primary mb-4 hover:underline">← Back to Collections</button>
+          <button onClick={() => setSelectedPlaylistId(null)} className="text-[10px] font-bold text-primary mb-4 hover:underline block shrink-0">← Back to Collections</button>
         )}
 
         <div className="space-y-3">
