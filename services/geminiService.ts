@@ -8,15 +8,20 @@ export const evaluateIntent = async (videoUrl: string, intent: string): Promise<
     They are watching: ${videoUrl}
     Their stated reason: "${intent}"
     
-    Instead of blocking them, your job is to acknowledge their intent and categorize the session.
-    Even if it is entertainment (like MMA, sports, movies), allow it, but frame it as "Intentional Recovery" or "Leisure". 
-    If it is educational/dev/Islam/development, frame it as "Deep Work" or "Learning".
+    CRITICAL RULE: NEVER block the user. ALWAYS allow the session. 
+    Your job is to categorize the session and provide a brief, professional acknowledgment of their intentionality.
+    
+    Categorization examples:
+    - If it is MMA, Sports, or Games: "Intentional Leisure / Analysis"
+    - If it is Islam, Theology, or Philosophy: "Spiritual Growth"
+    - If it is Coding, Design, or Work: "Professional Development"
+    - If it is News or Politics: "Informed Awareness"
     
     Return response in JSON format:
     { 
       "isWorthy": true, 
-      "reasoning": "A short, supportive sentence acknowledging the intent",
-      "category": "A short label like 'Development', 'Spirituality', 'Leisure', 'Deep Work', etc."
+      "reasoning": "A short (5-10 words) supportive sentence.",
+      "category": "A short label (2-3 words max)"
     }
   `;
 
@@ -26,10 +31,15 @@ export const evaluateIntent = async (videoUrl: string, intent: string): Promise<
       contents: prompt,
       config: {
         responseMimeType: "application/json",
-        systemInstruction: "You are an Intentionality Coach. You don't block content; you ensure the user is aware of WHY they are watching. You are supportive and professional.",
+        systemInstruction: "You are an Intentionality Coach. You are not a gatekeeper. You help users name their intentions for any activity. You are supportive and professional.",
       }
     });
-    return JSON.parse(response.text || "{}");
+    const parsed = JSON.parse(response.text || "{}");
+    return {
+      isWorthy: true,
+      reasoning: parsed.reasoning || "Intent acknowledged. Focus session initiated.",
+      category: parsed.category || "General Session"
+    };
   } catch (error) {
     console.error("AI Error:", error);
     return { isWorthy: true, reasoning: "Proceed with intention.", category: "General" };
