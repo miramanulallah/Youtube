@@ -14,7 +14,8 @@ import {
   BrainCircuit,
   Zap,
   CheckCircle2,
-  RotateCcw
+  RotateCcw,
+  FastForward
 } from 'lucide-react';
 
 const LOCAL_STORAGE_KEY = 'yt_workspace_history';
@@ -140,7 +141,6 @@ function App() {
     const checkYT = setInterval(() => {
       if ((window as any).YT && (window as any).YT.Player && playerContainerRef.current) {
         clearInterval(checkYT);
-        // Important: Create a stable internal div for YT to replace
         const innerDiv = document.createElement('div');
         innerDiv.id = 'yt-player-internal';
         playerContainerRef.current.innerHTML = '';
@@ -181,6 +181,28 @@ function App() {
     setVideoFinished(false);
   };
 
+  const startSessionWithMetadata = (id: string, category: string) => {
+    const existing = history.find(h => extractYoutubeId(h.url) === id);
+    
+    const newItem: VideoHistoryItem = existing || {
+      id: crypto.randomUUID(),
+      url: `https://www.youtube.com/watch?v=${id}`,
+      title: 'Syncing metadata...',
+      lastPlayed: Date.now(),
+      progress: 0,
+      duration: 0,
+      completed: false,
+      notes: '',
+      category: category
+    };
+    
+    setCurrentVideo(newItem);
+    setIsFocusing(true);
+    setIsGateOpen(true);
+    setVideoFinished(false);
+    setTimeout(() => loadPlayer(id), 200);
+  };
+
   const handleIntentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (intentInput.length < 2) {
@@ -196,26 +218,13 @@ function App() {
     setIsEvaluating(false);
 
     const id = extractYoutubeId(urlInput)!;
-    const existing = history.find(h => extractYoutubeId(h.url) === id);
-    
-    const newItem: VideoHistoryItem = existing || {
-      id: crypto.randomUUID(),
-      url: `https://www.youtube.com/watch?v=${id}`,
-      title: 'Syncing metadata...',
-      lastPlayed: Date.now(),
-      progress: 0,
-      duration: 0,
-      completed: false,
-      notes: '',
-      category: result.category
-    };
-    
-    setCurrentVideo(newItem);
-    setIsFocusing(true);
-    setIsGateOpen(true);
-    setVideoFinished(false);
-    // Use a short delay to ensure DOM is ready
-    setTimeout(() => loadPlayer(id), 200);
+    startSessionWithMetadata(id, result.category);
+  };
+
+  const handleSkip = () => {
+    const id = extractYoutubeId(urlInput);
+    if (!id) return;
+    startSessionWithMetadata(id, "Quick Session");
   };
 
   const activeVideoId = isGateOpen && currentVideo ? extractYoutubeId(currentVideo.url) : null;
@@ -230,7 +239,6 @@ function App() {
 
   return (
     <div ref={containerRef} className="h-screen w-screen bg-[#0f0f0f] text-[#f1f1f1] flex overflow-hidden font-sans yt-gradient">
-      {/* Sidebar: Rendered conditionally but with fixed presence in flex container */}
       {!isCinemaMode && (
         <aside className="w-80 flex flex-col p-5 border-r border-white/5 bg-[#0f0f0f] animate-in slide-in-from-left duration-300 h-full">
           <div className="mb-8 flex items-center gap-3 px-2">
@@ -380,14 +388,24 @@ function App() {
                         className="w-full bg-[#181818] border border-white/10 rounded-xl p-5 text-sm text-white focus:outline-none focus:border-primary min-h-[120px] resize-none shadow-xl transition-all"
                       />
                       
-                      <button 
-                        type="submit"
-                        disabled={isEvaluating}
-                        className="w-full py-4 bg-white hover:bg-zinc-200 text-black rounded-full font-bold text-sm transition-all flex items-center justify-center gap-3 disabled:opacity-50"
-                      >
-                        {isEvaluating ? <Loader2 className="animate-spin" /> : <BrainCircuit size={18} />}
-                        {isEvaluating ? 'Calibrating...' : 'Start Intentional Session'}
-                      </button>
+                      <div className="flex items-center gap-3">
+                        <button 
+                          type="button"
+                          onClick={handleSkip}
+                          className="flex-1 py-4 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-full font-bold text-sm transition-all flex items-center justify-center gap-3"
+                        >
+                          <FastForward size={18} />
+                          Skip
+                        </button>
+                        <button 
+                          type="submit"
+                          disabled={isEvaluating}
+                          className="flex-[2] py-4 bg-white hover:bg-zinc-200 text-black rounded-full font-bold text-sm transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+                        >
+                          {isEvaluating ? <Loader2 className="animate-spin" /> : <BrainCircuit size={18} />}
+                          {isEvaluating ? 'Calibrating...' : 'Start Intentional Session'}
+                        </button>
+                      </div>
                     </form>
 
                     {error && (
@@ -397,7 +415,7 @@ function App() {
                 </div>
               )}
 
-              {/* Player Container - Stays stable in DOM */}
+              {/* Player Container */}
               <div 
                 ref={playerContainerRef}
                 className={`w-full h-full ${activeVideoId && isGateOpen ? 'block' : 'hidden'}`} 
@@ -459,7 +477,6 @@ function App() {
             </div>
           </div>
 
-          {/* AI Studio: Rendered conditionally */}
           {!isCinemaMode && (
             <div className="w-[420px] hidden xl:flex flex-col h-full shrink-0 animate-in slide-in-from-right duration-300">
                <AIStudio 
