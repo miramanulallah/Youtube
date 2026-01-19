@@ -6,7 +6,7 @@ import { CustomControls } from './components/CustomControls';
 import { VideoHistoryItem, SidebarView, Playlist } from './types';
 import { evaluateIntent, transcribeAudio } from './services/geminiService';
 import { 
-  Timer, Maximize, Monitor, Loader2, BrainCircuit, Zap, CheckCircle2, RotateCcw, FastForward, MoreVertical, Clock, Mic, PlusSquare
+  Loader2, BrainCircuit, Zap, CheckCircle2, RotateCcw, MoreVertical, Clock, Mic, PlusSquare, X
 } from 'lucide-react';
 
 const LOCAL_STORAGE_KEY = 'yt_workspace_history';
@@ -36,7 +36,6 @@ function App() {
   const [watchLater, setWatchLater] = useState<VideoHistoryItem[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [sidebarView, setSidebarView] = useState<SidebarView>(SidebarView.HISTORY);
-  const [error, setError] = useState<string | null>(null);
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [isGateOpen, setIsGateOpen] = useState(false);
   const [videoFinished, setVideoFinished] = useState(false);
@@ -67,10 +66,11 @@ function App() {
       if (e.key === ' ') { e.preventDefault(); togglePlay(); }
       if (e.key.toLowerCase() === 'f') containerRef.current?.requestFullscreen();
       if (e.key.toLowerCase() === 't') setIsCinemaMode(prev => !prev);
+      if (e.key === 'Escape' && isCinemaMode) setIsCinemaMode(false);
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isPlaying]);
+  }, [isPlaying, isCinemaMode]);
 
   useEffect(() => {
     const savedH = localStorage.getItem(LOCAL_STORAGE_KEY);
@@ -114,9 +114,7 @@ function App() {
   const updateMetadata = useCallback((vd: any, dur: number) => {
     if (!vd || !vd.title) return;
     const vidId = vd.video_id;
-    
-    const intentPart = intentRef.current ? `[${intentRef.current}] ` : "";
-    const finalTitle = intentPart + vd.title;
+    const finalTitle = (intentRef.current ? `[${intentRef.current}] ` : "") + vd.title;
 
     setCurrentVideo(prev => {
       const updated = { 
@@ -132,30 +130,30 @@ function App() {
         if (!exists) return [updated, ...old];
         return old.map(h => extractYoutubeId(h.url) === vidId ? { ...h, ...updated } : h);
       });
-
-      setWatchLater(old => old.map(h => extractYoutubeId(h.url) === vidId ? { ...h, title: vd.title, author: vd.author, thumbnailUrl: fetchThumbnail(vidId) } : h));
-      
       return updated;
     });
   }, []);
 
   const onPlayerReady = useCallback((event: any) => {
-    const vd = event.target.getVideoData();
-    const dur = event.target.getDuration();
-    setDuration(dur);
-    updateMetadata(vd, dur);
+    setDuration(event.target.getDuration());
     setIsMuted(event.target.isMuted());
-  }, [updateMetadata]);
+  }, []);
 
   const onPlayerStateChange = useCallback((e: any) => {
     const YT = (window as any).YT;
     if (e.data === YT.PlayerState.ENDED) {
-      setVideoFinished(true); setIsFocusing(false); setIsPlaying(false);
+      setVideoFinished(true); 
+      setIsFocusing(false); 
+      setIsPlaying(false);
+      playerInstance?.stopVideo();
     } else if (e.data === YT.PlayerState.PLAYING) {
-      setVideoFinished(false); setIsFocusing(true); setIsPlaying(true);
+      setVideoFinished(false); 
+      setIsFocusing(true); 
+      setIsPlaying(true);
       updateMetadata(e.target.getVideoData(), e.target.getDuration());
     } else if (e.data === YT.PlayerState.PAUSED) {
-      setIsPlaying(false); setIsFocusing(false);
+      setIsPlaying(false); 
+      setIsFocusing(false);
     }
   }, [updateMetadata]);
 
@@ -184,12 +182,10 @@ function App() {
 
   const startSession = (id: string, category: string, initialIntent: string = "") => {
     intentRef.current = initialIntent ? (initialIntent.length > 20 ? initialIntent.substring(0, 20) + "..." : initialIntent) : "";
-    
-    const existing = history.find(h => extractYoutubeId(h.url) === id);
-    const newItem: VideoHistoryItem = existing || {
+    const newItem: VideoHistoryItem = {
       id: crypto.randomUUID(),
       url: `https://www.youtube.com/watch?v=${id}`,
-      title: intentRef.current ? `[${intentRef.current}] Session` : 'Focus Session',
+      title: 'Focus Session',
       thumbnailUrl: fetchThumbnail(id),
       lastPlayed: Date.now(),
       progress: 0,
@@ -198,29 +194,22 @@ function App() {
       notes: initialIntent ? `Intent: ${initialIntent}\n\n` : '',
       category
     };
-
     setCurrentVideo(newItem);
-    setHistory(old => [newItem, ...old.filter(h => h.id !== newItem.id)]);
+    setHistory(old => [newItem, ...old]);
     setIsGateOpen(true);
     setVideoFinished(false);
-    setControlsVisible(true);
-    // Auto-enable cinema mode for better immersion as requested
     setIsCinemaMode(true);
+    setControlsVisible(false);
     setTimeout(() => loadPlayer(id), 200);
   };
 
   const handleIntentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (intentInput.length < 2) { setError("Purpose mandatory."); return; }
+    if (intentInput.length < 2) return;
     setIsEvaluating(true);
     const result = await evaluateIntent(urlInput, intentInput);
     setIsEvaluating(false);
     startSession(extractYoutubeId(urlInput)!, result.category, intentInput);
-  };
-
-  const handleSkip = () => {
-    const id = extractYoutubeId(urlInput);
-    if (id) startSession(id, "Quick Session");
   };
 
   const handleMicIntent = async () => {
@@ -234,19 +223,21 @@ function App() {
         audioChunksRef.current = [];
         recorder.ondataavailable = (e) => audioChunksRef.current.push(e.data);
         recorder.onstop = async () => {
-          const blob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
           const reader = new FileReader();
-          reader.readAsDataURL(blob);
+          reader.readAsDataURL(audioBlob);
           reader.onloadend = async () => {
-            const base64 = (reader.result as string).split(',')[1];
-            const trans = await transcribeAudio(base64);
-            if (trans) setIntentInput(prev => (prev ? prev + " " : "") + trans);
+            const base64Audio = (reader.result as string).split(',')[1];
+            const transcription = await transcribeAudio(base64Audio);
+            if (transcription) setIntentInput(prev => prev + (prev ? " " : "") + transcription);
           };
         };
         recorder.start();
         mediaRecorderRef.current = recorder;
         setIsRecordingIntent(true);
-      } catch (err) {}
+      } catch (err) {
+        console.error("Mic access denied", err);
+      }
     }
   };
 
@@ -254,10 +245,10 @@ function App() {
     const id = extractYoutubeId(urlInput);
     if (!id) return;
     if (!watchLater.some(i => extractYoutubeId(i.url) === id)) {
-      const newItem: VideoHistoryItem = {
+      setWatchLater(prev => [{
         id: crypto.randomUUID(),
         url: `https://www.youtube.com/watch?v=${id}`,
-        title: 'Watch Later Video',
+        title: 'Saved Video',
         thumbnailUrl: fetchThumbnail(id),
         lastPlayed: Date.now(),
         progress: 0,
@@ -265,8 +256,7 @@ function App() {
         completed: false,
         notes: '',
         category: 'Watch Later'
-      };
-      setWatchLater(prev => [newItem, ...prev]);
+      }, ...prev]);
     }
     setShowHeaderMenu(false);
   };
@@ -274,30 +264,7 @@ function App() {
   const handleSaveToPlaylist = (playlistId: string) => {
     const vidId = extractYoutubeId(urlInput);
     if (!vidId) return;
-    
-    setPlaylists(prev => prev.map(p => {
-      if (p.id === playlistId && !p.videoIds.includes(vidId)) {
-        return { ...p, videoIds: [...p.videoIds, vidId] };
-      }
-      return p;
-    }));
-    
-    if (!history.some(h => extractYoutubeId(h.url) === vidId)) {
-       const newItem: VideoHistoryItem = {
-        id: crypto.randomUUID(),
-        url: `https://www.youtube.com/watch?v=${vidId}`,
-        title: 'Playlist Video',
-        thumbnailUrl: fetchThumbnail(vidId),
-        lastPlayed: Date.now(),
-        progress: 0,
-        duration: 0,
-        completed: false,
-        notes: '',
-        category: 'Playlist'
-      };
-      setHistory(prev => [newItem, ...prev]);
-    }
-
+    setPlaylists(prev => prev.map(p => (p.id === playlistId && !p.videoIds.includes(vidId)) ? { ...p, videoIds: [...p.videoIds, vidId] } : p));
     setShowPlaylistPicker(false);
     setShowHeaderMenu(false);
   };
@@ -305,14 +272,14 @@ function App() {
   const activeVideoId = extractYoutubeId(urlInput);
 
   return (
-    <div ref={containerRef} className="h-screen w-screen bg-[#0f0f0f] text-[#f1f1f1] flex overflow-hidden font-sans yt-gradient">
+    <div ref={containerRef} className="h-screen w-screen bg-black text-[#f1f1f1] flex overflow-hidden font-sans">
       {!isCinemaMode && (
-        <aside className="w-80 flex flex-col p-5 border-r border-white/5 bg-[#0f0f0f] h-full relative z-[100] overflow-visible animate-in slide-in-from-left duration-500">
+        <aside className="w-80 flex flex-col p-5 border-r border-white/5 bg-[#0f0f0f] h-full relative z-[100] animate-in slide-in-from-left duration-300">
           <div className="mb-8 flex items-center gap-3 px-2">
             <img src={TOP_LOGO} className="w-10 h-10 object-contain" alt="Logo" />
             <div className="min-w-0">
               <h1 className="font-bold text-xl leading-none">YouTube</h1>
-              <span className="text-[10px] text-primary uppercase font-bold block mt-1">Workspace</span>
+              <span className="text-[10px] text-primary uppercase font-bold block mt-1 tracking-widest">Workspace</span>
             </div>
           </div>
           
@@ -329,13 +296,10 @@ function App() {
           <div className="flex-1 overflow-visible">
             <HistoryPanel 
               history={history} watchLater={watchLater} playlists={playlists} currentView={sidebarView} onViewChange={setSidebarView}
-              onSelect={i => { setUrlInput(i.url); intentRef.current = ""; setIsGateOpen(true); setCurrentVideo(i); setVideoFinished(false); setIsCinemaMode(true); setTimeout(() => loadPlayer(extractYoutubeId(i.url)!), 200); }}
+              onSelect={i => { setUrlInput(i.url); setIsGateOpen(true); setCurrentVideo(i); setVideoFinished(false); setIsCinemaMode(true); setTimeout(() => loadPlayer(extractYoutubeId(i.url)!), 200); }}
               onDelete={(id, wl) => wl ? setWatchLater(p => p.filter(i=>i.id!==id)) : setHistory(p => p.filter(i=>i.id!==id))}
               onRename={(id, t, wl) => wl ? setWatchLater(p => p.map(h=>h.id===id?{...h,title:t}:h)) : setHistory(p => p.map(h=>h.id===id?{...h,title:t}:h))}
-              onCreatePlaylist={(name) => {
-                const newPlaylist: Playlist = { id: crypto.randomUUID(), name, videoIds: [] };
-                setPlaylists(prev => [...prev, newPlaylist]);
-              }}
+              onCreatePlaylist={(name) => setPlaylists(prev => [...prev, { id: crypto.randomUUID(), name, videoIds: [] }])}
               onDeletePlaylist={(id) => setPlaylists(prev => prev.filter(p => p.id !== id))}
               onExport={() => { const b = new Blob([JSON.stringify({history,watchLater,playlists})],{type:'application/json'}); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href=u; a.download='workspace.json'; a.click(); }}
               onImport={e => { const f = e.target.files?.[0]; if(f){const r=new FileReader(); r.onload=re=>{try{const i=JSON.parse(re.target?.result as string); if(i.history) setHistory(i.history); if(i.watchLater) setWatchLater(i.watchLater); if(i.playlists) setPlaylists(i.playlists);}catch(err){}};r.readAsText(f);}}}
@@ -344,55 +308,51 @@ function App() {
         </aside>
       )}
 
-      <div className="flex-1 flex flex-col relative min-w-0 overflow-hidden">
-        {/* Refined Header - Completely slides out when hidden to prevent "disturbing text" or slivers */}
+      <div className="flex-1 flex flex-col relative min-w-0 bg-black">
+        {/* Header visibility fix: hide immediately if a video is identified (Protocol or Session) unless hovering */}
         <header 
           onMouseEnter={() => setControlsVisible(true)}
-          className={`z-50 w-full p-4 flex justify-center border-b border-white/5 bg-[#0f0f0f]/95 backdrop-blur-2xl transition-all duration-500 fixed top-0 left-0 right-0 
-            ${(isCinemaMode || isGateOpen) && !controlsVisible ? '-translate-y-full opacity-0 pointer-events-none' : 'translate-y-0 opacity-100 pointer-events-auto'}`}
+          className={`z-50 w-full p-4 flex justify-center bg-[#0f0f0f]/95 backdrop-blur-2xl transition-all duration-500 fixed top-0 left-0 right-0 border-b border-white/5
+            ${(activeVideoId || isCinemaMode || isGateOpen) && !controlsVisible ? '-translate-y-full opacity-0' : 'translate-y-0 opacity-100'}`}
         >
-          <form onSubmit={e => { e.preventDefault(); const id = extractYoutubeId(urlInput); if(id) { setIsGateOpen(false); setVideoFinished(false); } }} className="w-full max-w-3xl flex items-center gap-4 relative">
+          <div className="w-full max-w-3xl flex items-center gap-3">
             <div className="relative flex-1">
-              <input type="text" value={urlInput} onChange={e => setUrlInput(e.target.value)} placeholder="Paste YouTube link..." className="w-full bg-[#121212] border border-white/10 text-white px-5 py-3 rounded-full text-sm outline-none focus:border-primary transition-all" />
-              <button type="submit" className="absolute right-1.5 top-1.5 bottom-1.5 px-5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-full flex items-center gap-2 font-bold uppercase tracking-widest text-[10px] transition-all">Focus <Zap size={14} className="text-primary" /></button>
+              <input type="text" value={urlInput} onChange={e => setUrlInput(e.target.value)} placeholder="Paste YouTube link..." className="w-full bg-[#121212] border border-white/10 text-white px-5 py-2.5 rounded-full text-sm outline-none focus:border-primary transition-all" />
+              <button onClick={() => { const id = extractYoutubeId(urlInput); if(id) { setIsGateOpen(false); setVideoFinished(false); } }} className="absolute right-1.5 top-1.5 bottom-1.5 px-4 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-full flex items-center gap-2 font-bold uppercase tracking-widest text-[10px]">Focus <Zap size={14} className="text-primary" /></button>
             </div>
             {activeVideoId && (
               <div className="relative">
-                <button type="button" onClick={() => setShowHeaderMenu(!showHeaderMenu)} className="p-3 bg-white/5 hover:bg-white/10 rounded-full transition-all"><MoreVertical size={18} /></button>
+                <button type="button" onClick={() => setShowHeaderMenu(!showHeaderMenu)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-full"><MoreVertical size={18} /></button>
                 {showHeaderMenu && (
-                  <div className="absolute right-0 top-12 w-48 bg-[#181818] border border-white/10 rounded-lg shadow-2xl py-1 z-50 ring-1 ring-white/10 animate-fade-in">
-                    <button type="button" onClick={handleSaveWatchLater} className="w-full text-left px-4 py-3 text-xs font-bold uppercase text-zinc-300 hover:bg-white/5 flex items-center gap-2 transition-colors">
+                  <div className="absolute right-0 top-12 w-48 bg-[#181818] border border-white/10 rounded-xl shadow-2xl py-1 z-50 animate-fade-in">
+                    <button onClick={handleSaveWatchLater} className="w-full text-left px-4 py-3 text-xs font-bold uppercase text-zinc-300 hover:bg-white/5 flex items-center gap-2">
                       <Clock size={14} /> Save for later
                     </button>
-                    <button type="button" onClick={() => setShowPlaylistPicker(!showPlaylistPicker)} className="w-full text-left px-4 py-3 text-xs font-bold uppercase text-zinc-300 hover:bg-white/5 flex items-center gap-2 border-t border-white/5 transition-colors">
+                    <button onClick={() => setShowPlaylistPicker(true)} className="w-full text-left px-4 py-3 text-xs font-bold uppercase text-zinc-300 hover:bg-white/5 flex items-center gap-2 border-t border-white/5">
                       <PlusSquare size={14} className="text-primary" /> Save in Custom
                     </button>
                   </div>
                 )}
-                {showPlaylistPicker && (
-                  <div className="absolute right-52 top-12 w-56 bg-[#0a0a0a] border border-white/10 rounded-xl shadow-[0_20px_60px_rgba(0,0,0,0.9)] py-2 z-[60] ring-1 ring-white/20 animate-fade-in">
-                    <div className="px-4 py-2 border-b border-white/5 mb-1 flex justify-between items-center">
-                      <span className="text-[10px] font-black text-primary uppercase tracking-widest">Your Playlists</span>
-                      <X size={12} className="cursor-pointer text-zinc-500" onClick={() => setShowPlaylistPicker(false)} />
-                    </div>
-                    {playlists.length === 0 ? (
-                      <p className="px-4 py-3 text-[10px] text-zinc-500 italic">No playlists found.</p>
-                    ) : (
-                      <div className="max-h-60 overflow-y-auto custom-scrollbar">
-                        {playlists.map(p => (
-                          <button key={p.id} onClick={() => handleSaveToPlaylist(p.id)} className="w-full text-left px-4 py-3 text-xs font-medium text-zinc-300 hover:bg-white/10 hover:text-white transition-all flex items-center justify-between group">
-                            {p.name}
-                            <PlusSquare size={14} className="opacity-0 group-hover:opacity-100 text-primary transition-all" />
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
             )}
-          </form>
+          </div>
         </header>
+
+        {showPlaylistPicker && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+            <div className="w-80 bg-[#121212] border border-white/10 rounded-2xl shadow-2xl p-4">
+              <div className="flex justify-between items-center mb-4 border-b border-white/5 pb-2">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-primary">Your Playlists</h3>
+                <button onClick={() => setShowPlaylistPicker(false)} className="text-zinc-500 hover:text-white"><X size={16} /></button>
+              </div>
+              <div className="max-h-60 overflow-y-auto custom-scrollbar space-y-1">
+                {playlists.length === 0 ? <p className="text-[10px] text-zinc-600 text-center py-4">No playlists found.</p> : playlists.map(p => (
+                  <button key={p.id} onClick={() => handleSaveToPlaylist(p.id)} className="w-full text-left px-3 py-2.5 text-xs text-zinc-300 hover:bg-white/5 rounded-lg transition-all">{p.name}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         <main 
           onMouseMove={() => { 
@@ -400,28 +360,28 @@ function App() {
             if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
             if (isPlaying) controlsTimeoutRef.current = setTimeout(() => setControlsVisible(false), 3000) as any;
           }}
-          className={`flex-1 flex p-6 gap-6 min-h-0 pt-20 transition-all duration-500 ${isCinemaMode ? 'p-0 gap-0 pt-0' : ''}`}
+          className={`flex-1 flex gap-0 transition-all duration-500 pt-0`}
         >
-          <div className="flex-1 relative bg-black rounded-2xl overflow-hidden border border-white/5 transition-all shadow-inner">
+          <div className="flex-1 relative bg-black overflow-hidden flex items-center justify-center">
             {activeVideoId && !isGateOpen && (
               <div className="absolute inset-0 z-[60] flex items-center justify-center bg-[#0f0f0f] p-8 animate-fade-in">
                 <div className="max-w-md w-full text-center space-y-6">
-                  <img src={PROTOCOL_ICON} className="w-32 h-32 mx-auto filter drop-shadow-[0_0_20px_rgba(225,0,255,0.8)]" alt="Protocol" />
+                  <img src={PROTOCOL_ICON} className="w-32 h-32 mx-auto drop-shadow-[0_0_20px_rgba(225,0,255,0.6)]" alt="Protocol" />
                   <h2 className="text-2xl font-bold uppercase tracking-tight">Intentional Protocol</h2>
                   <div className="relative">
-                    <textarea value={intentInput} onChange={e => setIntentInput(e.target.value)} placeholder="Why are you watching this?..." className="w-full bg-[#181818] border border-white/10 rounded-xl p-5 text-sm text-white focus:border-primary outline-none min-h-[120px] resize-none transition-all" />
-                    <button onClick={handleMicIntent} className={`absolute bottom-4 right-4 p-2.5 rounded-full transition-all ${isRecordingIntent ? 'bg-red-500 animate-pulse text-white' : 'bg-zinc-800 text-zinc-400'}`}><Mic size={18} /></button>
+                    <textarea value={intentInput} onChange={e => setIntentInput(e.target.value)} placeholder="State your purpose..." className="w-full bg-[#181818] border border-white/10 rounded-xl p-5 text-sm text-white focus:border-primary outline-none min-h-[120px] resize-none" />
+                    <button onClick={handleMicIntent} className={`absolute bottom-4 right-4 p-2.5 rounded-full ${isRecordingIntent ? 'bg-red-500 animate-pulse text-white' : 'bg-zinc-800 text-zinc-400'}`}><Mic size={18} /></button>
                   </div>
                   <div className="flex gap-3">
-                    <button type="button" onClick={handleSkip} className="flex-1 py-4 bg-zinc-800 hover:bg-zinc-700 text-white rounded-full font-bold uppercase text-sm transition-all">Skip</button>
-                    <button onClick={handleIntentSubmit} disabled={isEvaluating} className="flex-[2] py-4 bg-white hover:bg-zinc-200 text-black rounded-full font-bold uppercase text-sm flex items-center justify-center gap-2 transition-all">{isEvaluating ? <Loader2 className="animate-spin" /> : <BrainCircuit size={18} />} Start Session</button>
+                    <button type="button" onClick={() => { const id = extractYoutubeId(urlInput); if(id) startSession(id, "Quick Session"); }} className="flex-1 py-4 bg-zinc-800 hover:bg-zinc-700 text-white rounded-full font-bold uppercase text-sm">Skip</button>
+                    <button onClick={handleIntentSubmit} disabled={isEvaluating} className="flex-[2] py-4 bg-white hover:bg-zinc-200 text-black rounded-full font-bold uppercase text-sm flex items-center justify-center gap-2">{isEvaluating ? <Loader2 className="animate-spin" /> : <BrainCircuit size={18} />} Start Session</button>
                   </div>
                 </div>
               </div>
             )}
             
-            <div className={`absolute inset-0 transition-opacity duration-700 ${activeVideoId && isGateOpen && !videoFinished ? 'opacity-100 block' : 'opacity-0 hidden'}`}>
-              <div ref={playerContainerRef} className="w-full h-full scale-[1.2] origin-center pointer-events-none" />
+            <div className={`w-full h-full relative ${activeVideoId && isGateOpen && !videoFinished ? 'block' : 'hidden'}`}>
+              <div ref={playerContainerRef} className="w-full h-full scale-[1.05]" />
             </div>
 
             {activeVideoId && isGateOpen && !videoFinished && (
@@ -437,34 +397,29 @@ function App() {
             )}
 
             {videoFinished && (
-              <div className="absolute inset-0 z-[70] flex flex-col items-center justify-center bg-[#0f0f0f]/95 backdrop-blur-xl p-12 text-center animate-fade-in">
-                <CheckCircle2 size={60} className="text-emerald-500 mb-6" />
-                <h2 className="text-4xl font-black mb-3">Session Refined</h2>
+              <div className="absolute inset-0 z-[70] flex flex-col items-center justify-center bg-black p-12 text-center animate-fade-in">
+                <CheckCircle2 size={64} className="text-emerald-500 mb-6" />
+                <h2 className="text-4xl font-black mb-6">Session Refined</h2>
                 <div className="flex gap-4">
-                  <button onClick={() => { setVideoFinished(false); playerInstance?.seekTo(0); playerInstance?.playVideo(); }} className="px-8 py-3 bg-white/5 text-white rounded-full font-bold border border-white/5 transition-all"><RotateCcw size={20} className="inline mr-2" /> Replay</button>
-                  <button onClick={() => { setIsGateOpen(false); setUrlInput(''); setIsFocusing(false); playerInstance?.stopVideo(); setIsCinemaMode(false); }} className="px-8 py-3 bg-primary text-white rounded-full font-bold shadow-lg transition-all">Exit Workspace</button>
+                  <button onClick={() => { setVideoFinished(false); playerInstance?.playVideo(); }} className="px-8 py-3 bg-white/10 text-white rounded-full font-bold hover:bg-white/20 transition-all"><RotateCcw size={20} className="inline mr-2" /> Replay</button>
+                  <button onClick={() => { setIsGateOpen(false); setUrlInput(''); setIsFocusing(false); setIsCinemaMode(false); }} className="px-8 py-3 bg-primary text-white rounded-full font-bold shadow-lg hover:bg-primary/80 transition-all">Exit Workspace</button>
                 </div>
               </div>
             )}
 
             {!activeVideoId && (
-              <div className="h-full flex flex-col items-center justify-center text-center p-12 bg-[#0f0f0f] animate-fade-in">
-                <img src={CENTER_LOGO} className="w-48 h-48 mb-8 opacity-40 filter saturate-150 drop-shadow-[0_0_20px_rgba(225,0,255,0.5)]" alt="Center Logo" />
-                <h2 className="text-3xl font-black mb-3">Ready for Focus</h2>
-                <p className="text-zinc-500 text-sm">Intentionality is performance. Paste a link to begin.</p>
+              <div className="text-center p-12 animate-fade-in flex flex-col items-center">
+                <img src={CENTER_LOGO} className="w-56 h-56 mx-auto mb-10 animate-glow-pulse" alt="Logo" />
+                <h2 className="text-4xl font-black mb-3 tracking-tight">Ready for Focus</h2>
+                <p className="text-zinc-500 text-sm max-w-sm mx-auto leading-relaxed">Intentionality is performance. Paste a link to begin.</p>
               </div>
             )}
           </div>
-          {!isCinemaMode && <div className="w-[420px] hidden xl:flex flex-col h-full shrink-0 relative z-30 animate-in slide-in-from-right duration-500"><AIStudio currentTitle={currentVideo?.title || 'Synthesis Mode'} notes={currentVideo?.notes || ''} onNotesChange={t => { setCurrentVideo(p => p ? {...p, notes: t} : null); setHistory(old => old.map(h => h.id === currentVideo?.id ? {...h, notes: t} : h)); }} /></div>}
+          {!isCinemaMode && <div className="w-[420px] hidden xl:flex flex-col h-full shrink-0 border-l border-white/5 animate-in slide-in-from-right duration-300"><AIStudio currentTitle={currentVideo?.title || ''} notes={currentVideo?.notes || ''} onNotesChange={t => { setCurrentVideo(p => p ? {...p, notes: t} : null); setHistory(old => old.map(h => h.id === currentVideo?.id ? {...h, notes: t} : h)); }} /></div>}
         </main>
       </div>
     </div>
   );
 }
-
-// Minimal X icon replacement
-const X = ({ size, className, onClick }: { size: number, className?: string, onClick?: () => void }) => (
-  <svg onClick={onClick} className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-);
 
 export default App;

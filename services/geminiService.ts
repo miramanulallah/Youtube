@@ -1,10 +1,14 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 
-// Using gemini-flash-lite-latest as the high-performance, free-tier compatible model.
+// Using gemini-3-flash-preview as the high-performance model for text and multi-modal tasks.
 const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const PLAIN_TEXT_INSTRUCTION = "CRITICAL: Do NOT use any Markdown formatting. No bolding (**), no headers (#), no bullet points (*), no italics (_), no code blocks. Use only plain text and standard line breaks. If providing a list, use plain numbering (1., 2., 3.) or just separate lines.";
 
+/**
+ * Evaluates the user's intent for watching a video.
+ * Uses gemini-3-flash-preview and responseSchema to ensure structured JSON response.
+ */
 export const evaluateIntent = async (videoUrl: string, intent: string): Promise<{ isWorthy: boolean; reasoning: string; category: string }> => {
   const ai = getAI();
   const prompt = `
@@ -12,33 +16,34 @@ export const evaluateIntent = async (videoUrl: string, intent: string): Promise<
     Video URL: ${videoUrl}
     Stated Intent: "${intent}"
     
-    Categorize the session and provide a professional, plain text acknowledgment.
-    
-    Return response in strict JSON format:
-    { 
-      "isWorthy": true, 
-      "reasoning": "Supporting sentence in plain text.",
-      "category": "Short session category"
-    }
+    Categorize the session and provide a professional acknowledgment.
   `;
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-flash-lite-latest',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
         responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            isWorthy: { type: Type.BOOLEAN, description: "Whether the intent is considered worthy of a session." },
+            reasoning: { type: Type.STRING, description: "Professional acknowledgment in plain text." },
+            category: { type: Type.STRING, description: "Short session category name." }
+          },
+          required: ["isWorthy", "reasoning", "category"]
+        },
         systemInstruction: `You are an Intentionality Coach. ${PLAIN_TEXT_INSTRUCTION} Always return valid JSON.`,
       }
     });
     
-    // Safety check for JSON parsing
+    // Accessing .text property directly as per guidelines.
     const text = response.text || "{}";
-    const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
-    const parsed = JSON.parse(cleaned);
+    const parsed = JSON.parse(text);
     
     return {
-      isWorthy: true,
+      isWorthy: parsed.isWorthy ?? true,
       reasoning: parsed.reasoning || "Proceed with intention.",
       category: parsed.category || "Focus Session"
     };
@@ -48,6 +53,9 @@ export const evaluateIntent = async (videoUrl: string, intent: string): Promise<
   }
 };
 
+/**
+ * Generates study aids such as plans, quizzes, or summaries using gemini-3-flash-preview.
+ */
 export const generateStudyAid = async (
   videoTitle: string, 
   userNotes: string, 
@@ -63,7 +71,7 @@ export const generateStudyAid = async (
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-flash-lite-latest',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
         systemInstruction: `You are a master educator. ${PLAIN_TEXT_INSTRUCTION}`,
@@ -76,20 +84,25 @@ export const generateStudyAid = async (
   }
 };
 
+/**
+ * Transcribes audio using gemini-3-flash-preview's multi-modal capabilities.
+ */
 export const transcribeAudio = async (base64Audio: string): Promise<string> => {
   const ai = getAI();
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-flash-lite-latest',
-      contents: [
-        {
-          inlineData: {
-            mimeType: 'audio/wav',
-            data: base64Audio,
+      model: 'gemini-3-flash-preview',
+      contents: {
+        parts: [
+          {
+            inlineData: {
+              mimeType: 'audio/wav',
+              data: base64Audio,
+            },
           },
-        },
-        { text: "Transcribe this audio into plain text. No markdown." },
-      ],
+          { text: "Transcribe this audio into plain text. No markdown." },
+        ]
+      },
       config: {
         systemInstruction: PLAIN_TEXT_INSTRUCTION
       }
@@ -101,11 +114,14 @@ export const transcribeAudio = async (base64Audio: string): Promise<string> => {
   }
 };
 
+/**
+ * Provides quick chat functionality based on session context.
+ */
 export const quickChat = async (message: string, context: string): Promise<string> => {
   const ai = getAI();
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-flash-lite-latest',
+      model: 'gemini-3-flash-preview',
       contents: `Context: ${context}\n\nUser Question: ${message}`,
       config: {
         systemInstruction: `You are a helpful assistant. Provide answers in plain text only. No markdown. ${PLAIN_TEXT_INSTRUCTION}`,
