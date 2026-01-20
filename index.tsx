@@ -1,5 +1,5 @@
 
-import React, { Component, ReactNode, ErrorInfo } from 'react';
+import React, { ReactNode, ErrorInfo } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 
@@ -15,8 +15,11 @@ interface State {
 /**
  * ErrorBoundary captures errors from children and provides a fallback UI.
  */
-// Fix: Use Component directly from 'react' and explicitly declare state to ensure that the TypeScript compiler correctly associates the generic Props and State types.
-class ErrorBoundary extends Component<Props, State> {
+// Fix: Use React.Component directly and explicitly declare Props and State to ensure that the TypeScript compiler correctly associates the inherited 'props' and 'state' properties.
+class ErrorBoundary extends React.Component<Props, State> {
+  // Fix: Explicitly declaring props as a class member helps the TypeScript compiler resolve it on the instance when inheritance visibility issues occur.
+  props: Props;
+
   // Fix: Initializing state as a class property helps TypeScript resolve the 'state' property on the instance.
   state: State = {
     hasError: false,
@@ -25,6 +28,8 @@ class ErrorBoundary extends Component<Props, State> {
 
   constructor(props: Props) {
     super(props);
+    // Fix: Explicitly assigning props in the constructor to ensure it's available on the instance.
+    this.props = props;
   }
 
   // Static method used to update state after an error is detected.
@@ -39,7 +44,7 @@ class ErrorBoundary extends Component<Props, State> {
     console.error("Uncaught error:", error, errorInfo);
   }
 
-  render() {
+  render(): ReactNode {
     // If an error occurred, render the designated fallback UI.
     // Fix: Accessing state which is now correctly inherited and recognized.
     if (this.state.hasError) {
@@ -52,7 +57,7 @@ class ErrorBoundary extends Component<Props, State> {
     }
 
     // Return the child components.
-    // Fix: Accessing props which is now correctly inherited and recognized.
+    // Fix: Accessing props correctly from the React.Component base class.
     return this.props.children || null;
   }
 }

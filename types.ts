@@ -1,4 +1,9 @@
 
+export interface Chapter {
+  title: string;
+  time: number; // start time in seconds
+}
+
 export interface VideoHistoryItem {
   id: string;
   url: string;
@@ -11,6 +16,7 @@ export interface VideoHistoryItem {
   completed: boolean;
   notes: string;
   category?: string; // AI categorized intent
+  chapters?: Chapter[];
 }
 
 export interface Playlist {
@@ -39,4 +45,5 @@ export enum SidebarView {
   HISTORY = 'HISTORY',
   WATCH_LATER = 'WATCH_LATER',
   PLAYLISTS = 'PLAYLISTS',
+  QUEUE = 'QUEUE',
 }

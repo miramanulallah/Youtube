@@ -3,25 +3,26 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { HistoryPanel } from './components/HistoryPanel';
 import { AIStudio } from './components/AIStudio';
 import { CustomControls } from './components/CustomControls';
-import { VideoHistoryItem, SidebarView, Playlist } from './types';
+import { VideoHistoryItem, SidebarView, Playlist, Chapter } from './types';
 import { evaluateIntent, transcribeAudio } from './services/geminiService';
 import { 
-  Loader2, BrainCircuit, Zap, CheckCircle2, RotateCcw, MoreVertical, Clock, Mic, PlusSquare, X, MonitorPlay
+  Loader2, BrainCircuit, Zap, CheckCircle2, RotateCcw, MoreVertical, Clock, Mic, PlusSquare, X, MonitorPlay, Plus, ListOrdered
 } from 'lucide-react';
 
 const LOCAL_STORAGE_KEY = 'yt_workspace_history';
 const WATCH_LATER_KEY = 'yt_workspace_watch_later';
 const PLAYLISTS_KEY = 'yt_workspace_playlists';
+const QUEUES_KEY = 'yt_workspace_queues';
 
-// Favicon fallback
 const FALLBACK_FAVICON = "https://8upload.com/preview/f01c8db6aede6f36/favicon-96x96.png";
 const FALLBACK_CENTER_LOGO = "https://8upload.com/preview/69403e83898df13d/12086f9a-12fe-4396-81ce-5fc8d7866199.png";
 const PROTOCOL_ICON = "https://8upload.com/preview/b4f4f2cc43d0df2b/_CITYPNG.COM_HD_Purple_Neon_Aesthetic_Youtube_YT_Play_Icon_PNG_-_2000x2000.png";
 
 const extractYoutubeId = (url: string): string | null => {
   if (!url) return null;
+  const decodedUrl = decodeURIComponent(url);
   const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
-  const match = url.match(regex);
+  const match = decodedUrl.match(regex);
   return match ? match[1] : null;
 };
 
@@ -29,7 +30,6 @@ const fetchThumbnail = (id: string) => `https://img.youtube.com/vi/${id}/mqdefau
 
 let playerInstance: any = null;
 
-// Reusable Logo Component with Fallback logic
 const WorkspaceLogo = ({ src, fallback, className }: { src: string, fallback: string, className?: string }) => {
   const [currentSrc, setCurrentSrc] = useState(src);
   return (
@@ -49,12 +49,15 @@ function App() {
   const [history, setHistory] = useState<VideoHistoryItem[]>([]);
   const [watchLater, setWatchLater] = useState<VideoHistoryItem[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [queues, setQueues] = useState<Playlist[]>([]);
+  const [activeQueueId, setActiveQueueId] = useState<string | null>(null);
   const [sidebarView, setSidebarView] = useState<SidebarView>(SidebarView.HISTORY);
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [isGateOpen, setIsGateOpen] = useState(false);
   const [videoFinished, setVideoFinished] = useState(false);
   const [showPlaylistPicker, setShowPlaylistPicker] = useState(false);
+  const [pickerMode, setPickerMode] = useState<'playlist' | 'queue'>('playlist');
   const [isRecordingIntent, setIsRecordingIntent] = useState(false);
   
   const containerRef = useRef<HTMLDivElement>(null);
@@ -72,13 +75,37 @@ function App() {
   const [controlsVisible, setControlsVisible] = useState(false);
   const controlsTimeoutRef = useRef<number | null>(null);
 
+  // Helper: Extract Chapters from text (Notes or Metadata)
+  const extractChaptersFromText = (text: string): Chapter[] => {
+    const chapters: Chapter[] = [];
+    // Matches patterns like 0:00, 1:30, 10:25, 1:20:30 followed by some text
+    const regex = /(?:^|\n)(?:(\d+):)?(\d+):(\d+)\s+(.+)/g;
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      const hours = match[1] ? parseInt(match[1]) : 0;
+      const minutes = parseInt(match[2]);
+      const seconds = parseInt(match[3]);
+      const title = match[4].trim();
+      const totalSeconds = (hours * 3600) + (minutes * 60) + seconds;
+      chapters.push({ title, time: totalSeconds });
+    }
+    return chapters.sort((a, b) => a.time - b.time);
+  };
+
+  useEffect(() => {
+    const path = window.location.pathname + window.location.search;
+    if (path.length > 1) {
+      const vidId = extractYoutubeId(path);
+      if (vidId) setUrlInput(`https://www.youtube.com/watch?v=${vidId}`);
+    }
+  }, []);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if (e.key === ' ') { e.preventDefault(); togglePlay(); }
       if (e.key.toLowerCase() === 'f') containerRef.current?.requestFullscreen();
       if (e.key.toLowerCase() === 't') setIsCinemaMode(prev => !prev);
-      if (e.key === 'Escape' && isCinemaMode) setIsCinemaMode(false);
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -88,16 +115,19 @@ function App() {
     const savedH = localStorage.getItem(LOCAL_STORAGE_KEY);
     const savedW = localStorage.getItem(WATCH_LATER_KEY);
     const savedP = localStorage.getItem(PLAYLISTS_KEY);
+    const savedQ = localStorage.getItem(QUEUES_KEY);
     if (savedH) try { setHistory(JSON.parse(savedH)); } catch (e) {}
     if (savedW) try { setWatchLater(JSON.parse(savedW)); } catch (e) {}
     if (savedP) try { setPlaylists(JSON.parse(savedP)); } catch (e) {}
+    if (savedQ) try { setQueues(JSON.parse(savedQ)); } catch (e) {}
   }, []);
 
   useEffect(() => {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(history));
     localStorage.setItem(WATCH_LATER_KEY, JSON.stringify(watchLater));
     localStorage.setItem(PLAYLISTS_KEY, JSON.stringify(playlists));
-  }, [history, watchLater, playlists]);
+    localStorage.setItem(QUEUES_KEY, JSON.stringify(queues));
+  }, [history, watchLater, playlists, queues]);
 
   useEffect(() => {
     let interval: any;
@@ -112,20 +142,21 @@ function App() {
         const c = playerInstance.getCurrentTime();
         const t = playerInstance.getDuration();
         if (t > 0) {
-          const progressPercent = c / t;
-          setPlayed(progressPercent);
+          setPlayed(c / t);
           setDuration(t);
-          
-          // Persistent Playback Progress Update
-          if (currentVideo) {
-            setCurrentVideo(prev => prev ? { ...prev, progress: c } : null);
-            setHistory(old => old.map(h => h.id === currentVideo.id ? { ...h, progress: c, duration: t } : h));
-          }
+          setCurrentVideo(prev => {
+            if (prev && Math.abs(prev.progress - c) > 1) {
+              const updated = { ...prev, progress: c, duration: t };
+              setHistory(old => old.map(h => h.id === prev.id ? updated : h));
+              return updated;
+            }
+            return prev;
+          });
         }
-      }, 2000); // Save progress every 2 seconds
+      }, 2000); 
     }
     return () => clearInterval(interval);
-  }, [isPlaying, currentVideo?.id]);
+  }, [isPlaying]);
 
   const togglePlay = () => {
     if (!playerInstance) return;
@@ -133,35 +164,39 @@ function App() {
     else playerInstance.playVideo();
   };
 
+  const advanceQueue = useCallback(() => {
+    if (!activeQueueId || !currentVideo) return;
+    const queue = queues.find(q => q.id === activeQueueId);
+    if (!queue) return;
+    const currentId = extractYoutubeId(currentVideo.url);
+    const currentIndex = queue.videoIds.indexOf(currentId!);
+    if (currentIndex !== -1 && currentIndex < queue.videoIds.length - 1) {
+      const nextId = queue.videoIds[currentIndex + 1];
+      const combined = [...history, ...watchLater];
+      const nextVideo = combined.find(v => extractYoutubeId(v.url) === nextId);
+      if (nextVideo) {
+        onSelectVideo(nextVideo);
+      } else {
+        setUrlInput(`https://www.youtube.com/watch?v=${nextId}`);
+        setIsGateOpen(false);
+      }
+    }
+  }, [activeQueueId, currentVideo, queues, history, watchLater]);
+
   const updateMetadata = useCallback((vd: any, dur: number) => {
-    // If title is generic or missing, don't update to "Loading Title..."
-    if (!vd || !vd.title || vd.title === 'YouTube Video' || vd.title === '' || vd.title.toLowerCase().includes('loading')) return;
-    
+    if (!vd || !vd.title || vd.title === 'YouTube Video' || vd.title === '') return;
     const vidId = vd.video_id;
     const youtubeTitle = vd.title;
     const author = vd.author;
 
-    setCurrentVideo(prev => {
-      if (!prev) return null;
-      // Safety check: ensure we are updating the correct video in session
-      if (extractYoutubeId(prev.url) !== vidId) return prev;
-
-      const updated = { 
-        ...prev, 
-        title: youtubeTitle, 
-        author: author, 
-        duration: dur, 
-        thumbnailUrl: fetchThumbnail(vidId) 
-      } as VideoHistoryItem;
-      
-      setHistory(old => {
-        const index = old.findIndex(h => extractYoutubeId(h.url) === vidId);
-        if (index === -1) return [updated, ...old];
-        const newHistory = [...old];
-        newHistory[index] = { ...newHistory[index], ...updated };
-        return newHistory;
-      });
-      return updated;
+    setHistory(old => {
+      const index = old.findIndex(h => extractYoutubeId(h.url) === vidId);
+      if (index === -1) return old;
+      const newHistory = [...old];
+      const updatedItem = { ...newHistory[index], title: youtubeTitle, author, duration: dur, thumbnailUrl: fetchThumbnail(vidId) };
+      newHistory[index] = updatedItem;
+      setCurrentVideo(prev => (prev && extractYoutubeId(prev.url) === vidId) ? updatedItem : prev);
+      return newHistory;
     });
   }, []);
 
@@ -169,14 +204,11 @@ function App() {
     const dur = event.target.getDuration();
     setDuration(dur);
     setIsMuted(event.target.isMuted());
-    
-    // Resume from saved progress if available
     if (currentVideo && currentVideo.progress > 0) {
       event.target.seekTo(currentVideo.progress, true);
     }
-    
     updateMetadata(event.target.getVideoData(), dur);
-  }, [updateMetadata, currentVideo?.id]);
+  }, [updateMetadata, currentVideo]);
 
   const onPlayerStateChange = useCallback((e: any) => {
     const YT = (window as any).YT;
@@ -188,6 +220,7 @@ function App() {
         setIsFocusing(false); 
         setIsPlaying(false);
         playerInstance?.stopVideo();
+        advanceQueue();
       }
     } else if (e.data === YT.PlayerState.PLAYING) {
       setVideoFinished(false); 
@@ -198,14 +231,11 @@ function App() {
       setIsPlaying(false); 
       setIsFocusing(false);
     }
-  }, [updateMetadata]);
+  }, [updateMetadata, advanceQueue]);
 
   const loadPlayer = useCallback((videoId: string, startAt: number = 0) => {
     if (playerInstance?.loadVideoById) {
-      playerInstance.loadVideoById({
-        videoId: videoId,
-        startSeconds: Math.floor(startAt)
-      });
+      playerInstance.loadVideoById({ videoId, startSeconds: Math.floor(startAt) });
       return;
     }
     const checkYT = setInterval(() => {
@@ -217,10 +247,7 @@ function App() {
         playerContainerRef.current.appendChild(div);
         playerInstance = new (window as any).YT.Player('yt-player-internal', {
           height: '100%', width: '100%', videoId,
-          playerVars: { 
-            autoplay: 1, controls: 0, modestbranding: 1, rel: 0, showinfo: 0, iv_load_policy: 3, disablekb: 1, fs: 0,
-            start: Math.floor(startAt)
-          },
+          playerVars: { autoplay: 1, controls: 0, modestbranding: 1, rel: 0, showinfo: 0, iv_load_policy: 3, disablekb: 1, fs: 0, start: Math.floor(startAt) },
           events: { onReady: onPlayerReady, onStateChange: onPlayerStateChange }
         });
       }
@@ -228,24 +255,17 @@ function App() {
   }, [onPlayerReady, onPlayerStateChange]);
 
   const startSession = (id: string, category: string, initialIntent: string = "") => {
-    // Check for existing video in history to prevent duplicates
     const existing = history.find(h => extractYoutubeId(h.url) === id);
-    
     if (existing) {
-      const updatedExisting = { ...existing, lastPlayed: Date.now() };
-      setCurrentVideo(updatedExisting);
-      // Bring existing to top of history
-      setHistory(old => [updatedExisting, ...old.filter(h => h.id !== existing.id)]);
+      setCurrentVideo(existing);
+      setHistory(old => [existing, ...old.filter(h => h.id !== existing.id)]);
       setIsGateOpen(true);
       setVideoFinished(false);
       setIsCinemaMode(true);
       setControlsVisible(false);
-      // Resume from saved progress
       setTimeout(() => loadPlayer(id, existing.progress), 200);
       return;
     }
-
-    // Create new entry if not found
     const newItem: VideoHistoryItem = {
       id: crypto.randomUUID(),
       url: `https://www.youtube.com/watch?v=${id}`,
@@ -256,7 +276,8 @@ function App() {
       duration: 0,
       completed: false,
       notes: initialIntent ? `Objective: ${initialIntent}\n\n` : '',
-      category
+      category,
+      chapters: []
     };
     setCurrentVideo(newItem);
     setHistory(old => [newItem, ...old]);
@@ -308,6 +329,15 @@ function App() {
     }
   };
 
+  const onSelectVideo = (i: VideoHistoryItem) => {
+    setUrlInput(i.url); 
+    setCurrentVideo(i); 
+    setIsGateOpen(true); 
+    setVideoFinished(false); 
+    setIsCinemaMode(true); 
+    setTimeout(() => loadPlayer(extractYoutubeId(i.url)!, i.progress), 200); 
+  };
+
   const handleSaveWatchLater = () => {
     const id = extractYoutubeId(urlInput) || (currentVideo ? extractYoutubeId(currentVideo.url) : null);
     if (!id) return;
@@ -322,7 +352,8 @@ function App() {
         duration: currentVideo?.duration || 0,
         completed: false,
         notes: '',
-        category: 'Watch Later'
+        category: 'Watch Later',
+        chapters: []
       }, ...prev]);
     }
     setShowPlaylistPicker(false);
@@ -331,7 +362,21 @@ function App() {
   const handleSaveToPlaylist = (playlistId: string) => {
     const vidId = extractYoutubeId(urlInput) || (currentVideo ? extractYoutubeId(currentVideo.url) : null);
     if (!vidId) return;
-    setPlaylists(prev => prev.map(p => (p.id === playlistId && !p.videoIds.includes(vidId)) ? { ...p, videoIds: [...p.videoIds, vidId] } : p));
+    if (pickerMode === 'queue') {
+      setQueues(prev => prev.map(q => (q.id === playlistId && !q.videoIds.includes(vidId)) ? { ...q, videoIds: [...q.videoIds, vidId] } : q));
+    } else {
+      setPlaylists(prev => prev.map(p => (p.id === playlistId && !p.videoIds.includes(vidId)) ? { ...p, videoIds: [...p.videoIds, vidId] } : p));
+    }
+    setShowPlaylistPicker(false);
+  };
+
+  const handleCreateAndAddToQueue = () => {
+    const vidId = extractYoutubeId(urlInput) || (currentVideo ? extractYoutubeId(currentVideo.url) : null);
+    if (!vidId) return;
+    const name = currentVideo?.title && currentVideo.title !== 'Loading Title...' ? currentVideo.title : 'New Queue Session';
+    const newQueue: Playlist = { id: crypto.randomUUID(), name, videoIds: [vidId] };
+    setQueues(prev => [...prev, newQueue]);
+    setActiveQueueId(newQueue.id);
     setShowPlaylistPicker(false);
   };
 
@@ -343,9 +388,8 @@ function App() {
     <div ref={containerRef} className="h-screen w-screen bg-black text-[#f1f1f1] flex overflow-hidden font-sans select-none">
       {!isCinemaMode && (
         <aside className="w-80 flex flex-col p-5 border-r border-white/5 bg-[#0f0f0f] h-full shrink-0 animate-in slide-in-from-left duration-300 overflow-hidden">
-          {/* Sidebar Branding - Strict Alignment with Request */}
           <div className="mb-8 flex items-center gap-4 px-2 shrink-0">
-            <WorkspaceLogo src="/favicon-96x96.png" fallback={FALLBACK_FAVICON} className="w-10 h-10 object-contain rounded-lg shadow-[0_0_15px_rgba(225,0,255,0.2)]" />
+            <WorkspaceLogo src="/favicon-96x96.png" fallback={FALLBACK_FAVICON} className="w-10 h-10 object-contain rounded-lg" />
             <div className="flex flex-col">
               <h1 className="text-white font-bold text-2xl tracking-tight leading-none">YouTube</h1>
               <span className="text-primary font-black text-[10px] tracking-[0.25em] -mt-0.5 uppercase">WORKSPACE</span>
@@ -365,21 +409,21 @@ function App() {
           <div className="flex-1 min-h-0 relative">
             <div className="absolute inset-0">
               <HistoryPanel 
-                history={history} watchLater={watchLater} playlists={playlists} currentView={sidebarView} onViewChange={setSidebarView}
-                onSelect={i => { 
-                   setUrlInput(i.url); 
-                   setCurrentVideo(i); 
-                   setIsGateOpen(true); 
-                   setVideoFinished(false); 
-                   setIsCinemaMode(true); 
-                   setTimeout(() => loadPlayer(extractYoutubeId(i.url)!, i.progress), 200); 
+                history={history} watchLater={watchLater} playlists={playlists} queues={queues} currentView={sidebarView} onViewChange={setSidebarView}
+                onSelect={i => {
+                   if (sidebarView === SidebarView.QUEUE) {
+                     const q = queues.find(x => x.videoIds.includes(extractYoutubeId(i.url)!));
+                     if (q) setActiveQueueId(q.id);
+                   }
+                   onSelectVideo(i);
                 }}
                 onDelete={(id, wl) => wl ? setWatchLater(p => p.filter(i=>i.id!==id)) : setHistory(p => p.filter(i=>i.id!==id))}
                 onRename={(id, t, wl) => wl ? setWatchLater(p => p.map(h=>h.id===id?{...h,title:t}:h)) : setHistory(p => p.map(h=>h.id===id?{...h,title:t}:h))}
                 onCreatePlaylist={(name) => setPlaylists(prev => [...prev, { id: crypto.randomUUID(), name, videoIds: [] }])}
                 onDeletePlaylist={(id) => setPlaylists(prev => prev.filter(p => p.id !== id))}
-                onExport={() => { const b = new Blob([JSON.stringify({history,watchLater,playlists})],{type:'application/json'}); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href=u; a.download='workspace.json'; a.click(); }}
-                onImport={e => { const f = e.target.files?.[0]; if(f){const r=new FileReader(); r.onload=re=>{try{const i=JSON.parse(re.target?.result as string); if(i.history) setHistory(i.history); if(i.watchLater) setWatchLater(i.watchLater); if(i.playlists) setPlaylists(i.playlists);}catch(err){}};r.readAsText(f);}}}
+                onDeleteQueue={(id) => setQueues(prev => prev.filter(p => p.id !== id))}
+                onExport={() => { const b = new Blob([JSON.stringify({history,watchLater,playlists,queues})],{type:'application/json'}); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href=u; a.download='workspace.json'; a.click(); }}
+                onImport={e => { const f = e.target.files?.[0]; if(f){const r=new FileReader(); r.onload=re=>{try{const i=JSON.parse(re.target?.result as string); if(i.history) setHistory(i.history); if(i.watchLater) setWatchLater(i.watchLater); if(i.playlists) setPlaylists(i.playlists); if(i.queues) setQueues(i.queues);}catch(err){}};r.readAsText(f);}}}
               />
             </div>
           </div>
@@ -388,8 +432,7 @@ function App() {
 
       <div className="flex-1 flex flex-col relative min-w-0 bg-black overflow-hidden h-full">
         {showHeader && (
-          <header className="z-50 w-full p-4 flex justify-between items-center bg-[#0f0f0f]/95 backdrop-blur-2xl transition-all duration-500 fixed top-0 left-0 right-0 border-b border-white/5 shrink-0">
-            {/* Header Branding Left - Strict Alignment */}
+          <header className="z-50 w-full p-4 flex justify-between items-center bg-[#0f0f0f]/95 backdrop-blur-2xl fixed top-0 left-0 right-0 border-b border-white/5 shrink-0">
             <div className="flex items-center gap-3 ml-2">
               <WorkspaceLogo src="/favicon-96x96.png" fallback={FALLBACK_FAVICON} className="w-8 h-8 object-contain rounded-md" />
               <div className="hidden sm:flex flex-col">
@@ -401,7 +444,7 @@ function App() {
             <div className="flex-1 max-w-3xl flex items-center gap-3 px-4">
               <div className="relative flex-1">
                 <input type="text" value={urlInput} onChange={e => setUrlInput(e.target.value)} placeholder="Enter video link to start intentional session..." className="w-full bg-[#121212] border border-white/10 text-white px-5 py-2.5 rounded-full text-sm outline-none focus:border-primary transition-all shadow-inner" />
-                <button onClick={() => { const id = extractYoutubeId(urlInput); if(id) { setIsGateOpen(false); setVideoFinished(false); } }} className="absolute right-1.5 top-1.5 bottom-1.5 px-4 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-full flex items-center gap-2 font-bold uppercase tracking-widest text-[10px] transition-colors">Analyze <Zap size={14} className="text-primary" /></button>
+                <button onClick={() => { const id = extractYoutubeId(urlInput); if(id) { setIsGateOpen(false); setVideoFinished(false); } }} className="absolute right-1.5 top-1.5 bottom-1.5 px-4 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-full flex items-center gap-2 font-bold uppercase tracking-widest text-[10px]">Analyze <Zap size={14} className="text-primary" /></button>
               </div>
             </div>
 
@@ -415,14 +458,31 @@ function App() {
           <div className="fixed inset-0 z-[500] flex items-center justify-center bg-black/80 backdrop-blur-md">
             <div className="w-80 bg-[#121212] border border-white/10 rounded-2xl shadow-2xl p-4 animate-fade-in relative">
               <div className="flex justify-between items-center mb-4 border-b border-white/5 pb-2">
-                <h3 className="text-xs font-bold uppercase tracking-widest text-primary">Target List</h3>
+                <h3 className="text-xs font-bold uppercase tracking-widest text-primary">{pickerMode === 'queue' ? 'Queue Management' : 'Target List'}</h3>
                 <button onClick={() => setShowPlaylistPicker(false)} className="text-zinc-500 hover:text-white transition-colors"><X size={16} /></button>
               </div>
               <div className="max-h-60 overflow-y-auto custom-scrollbar space-y-1">
-                <button onClick={handleSaveWatchLater} className="w-full text-left px-3 py-3 text-xs text-zinc-300 hover:bg-white/10 rounded-lg transition-all flex items-center gap-2 mb-2 font-bold uppercase tracking-wider"><Clock size={14} className="text-primary" /> Watch Later</button>
-                {playlists.length === 0 ? <p className="text-[10px] text-zinc-600 text-center py-4">No custom lists found.</p> : playlists.map(p => (
-                  <button key={p.id} onClick={() => handleSaveToPlaylist(p.id)} className="w-full text-left px-3 py-2.5 text-xs text-zinc-400 hover:bg-white/5 rounded-lg transition-all">{p.name}</button>
-                ))}
+                {pickerMode === 'queue' ? (
+                  <>
+                    <button onClick={handleCreateAndAddToQueue} className="w-full text-left px-3 py-3 text-xs text-primary hover:bg-white/10 rounded-lg transition-all flex items-center gap-2 mb-2 font-bold uppercase tracking-wider"><Plus size={14} /> Create New Queue</button>
+                    {queues.map(q => (
+                      <button key={q.id} onClick={() => handleSaveToPlaylist(q.id)} className="w-full text-left px-3 py-2.5 text-xs text-zinc-400 hover:bg-white/5 rounded-lg transition-all flex justify-between items-center">
+                        <span>{q.name}</span>
+                        <span className="text-[9px] text-zinc-600">({q.videoIds.length} videos)</span>
+                      </button>
+                    ))}
+                  </>
+                ) : (
+                  <>
+                    <button onClick={handleSaveWatchLater} className="w-full text-left px-3 py-3 text-xs text-zinc-300 hover:bg-white/10 rounded-lg transition-all flex items-center gap-2 mb-2 font-bold uppercase tracking-wider"><Clock size={14} className="text-primary" /> Watch Later</button>
+                    {playlists.length === 0 ? <p className="text-[10px] text-zinc-600 text-center py-4">No custom lists found.</p> : playlists.map(p => (
+                      <button key={p.id} onClick={() => handleSaveToPlaylist(p.id)} className="w-full text-left px-3 py-2.5 text-xs text-zinc-400 hover:bg-white/5 rounded-lg transition-all flex justify-between items-center">
+                        <span>{p.name}</span>
+                        <span className="text-[9px] text-zinc-600">({p.videoIds.length})</span>
+                      </button>
+                    ))}
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -448,7 +508,6 @@ function App() {
                     </div>
                   )}
                   <div className="relative inline-block">
-                    {/* Intent Protocol Logo - Strict Alignment */}
                     <WorkspaceLogo src={PROTOCOL_ICON} fallback={PROTOCOL_ICON} className={`w-32 h-32 mx-auto transition-all duration-500 ${isRecordingIntent ? 'scale-110 drop-shadow-[0_0_40px_rgba(225,0,255,0.8)]' : 'drop-shadow-[0_0_20px_rgba(225,0,255,0.6)]'}`} />
                     {isRecordingIntent && <div className="absolute inset-0 border-4 border-primary rounded-full animate-ping opacity-20" />}
                   </div>
@@ -466,13 +525,6 @@ function App() {
                     >
                       <Mic size={20} />
                     </button>
-                    {isRecordingIntent && (
-                       <div className="absolute bottom-4 left-6 flex items-end gap-1 pointer-events-none">
-                         {[1,2,3,4,5].map(i => (
-                           <div key={i} className="w-1 bg-red-400 animate-pulse" style={{ height: `${Math.random() * 20 + 8}px`, animationDelay: `${i * 0.1}s` }} />
-                         ))}
-                       </div>
-                    )}
                   </div>
                   <div className="flex gap-4">
                     <button type="button" onClick={() => { const id = extractYoutubeId(urlInput); if(id) startSession(id, "Direct Session"); }} className="flex-1 py-4 bg-zinc-800/50 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded-full font-bold uppercase text-[11px] tracking-widest transition-all active:scale-95 border border-white/5">Skip Analysis</button>
@@ -482,6 +534,21 @@ function App() {
                       className="flex-[2] py-4 bg-white hover:bg-zinc-200 text-black rounded-full font-bold uppercase text-[11px] tracking-widest flex items-center justify-center gap-2 transition-all active:scale-95 shadow-[0_0_30px_rgba(255,255,255,0.1)] disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {isEvaluating ? <Loader2 className="animate-spin" /> : <BrainCircuit size={18} />} Verify Intent
+                    </button>
+                  </div>
+                  <div className="flex w-full mt-2 rounded-full overflow-hidden border border-white/10 bg-[#181818] shadow-lg group">
+                    <button 
+                      onClick={handleSaveWatchLater}
+                      className="flex-1 py-3.5 px-6 flex items-center justify-center gap-2 hover:bg-white/5 transition-all text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-primary"
+                    >
+                      <Clock size={14} /> Save for Watch Later
+                    </button>
+                    <div className="w-px bg-white/10" />
+                    <button 
+                      onClick={() => { setPickerMode('playlist'); setShowPlaylistPicker(true); }}
+                      className="py-3.5 px-6 hover:bg-primary hover:text-white transition-all text-zinc-400 group-hover:text-primary"
+                    >
+                      <Plus size={18} />
                     </button>
                   </div>
                 </div>
@@ -494,45 +561,34 @@ function App() {
 
             {activeVideoId && isGateOpen && !videoFinished && (
               <CustomControls 
-                playing={isPlaying} played={played} duration={duration} muted={isMuted} onPlayPause={togglePlay}
-                onSeek={e => { 
-                  const v = parseFloat(e.target.value); 
-                  setPlayed(v); 
-                  playerInstance?.seekTo(v * duration, true); 
-                }}
+                playing={isPlaying} played={played} duration={duration} muted={isMuted} 
+                chapters={currentVideo?.chapters || []}
+                onPlayPause={togglePlay}
+                onSeek={e => { const v = parseFloat(e.target.value); setPlayed(v); playerInstance?.seekTo(v * duration, true); }}
                 onMute={() => { if (isMuted) { playerInstance?.unMute(); setIsMuted(false); } else { playerInstance?.mute(); setIsMuted(true); } }}
-                onRewind={() => {
-                  const newTime = Math.max(0, playerInstance.getCurrentTime() - 10);
-                  playerInstance?.seekTo(newTime);
-                }}
-                onFastForward={() => {
-                  const newTime = Math.min(duration, playerInstance.getCurrentTime() + 10);
-                  playerInstance?.seekTo(newTime);
-                }}
+                onRewind={() => playerInstance?.seekTo(Math.max(0, playerInstance.getCurrentTime() - 10))}
+                onFastForward={() => playerInstance?.seekTo(Math.min(duration, playerInstance.getCurrentTime() + 10))}
                 onToggleFullscreen={() => containerRef.current?.requestFullscreen()}
-                onAddToList={() => setShowPlaylistPicker(true)}
+                onAddToList={() => { setPickerMode('playlist'); setShowPlaylistPicker(true); }}
+                onAddToQueue={() => { setPickerMode('queue'); setShowPlaylistPicker(true); }}
                 visible={controlsVisible || !isPlaying}
               />
             )}
 
             {videoFinished && (
               <div className="absolute inset-0 z-[200] flex flex-col items-center justify-center bg-black/98 backdrop-blur-3xl p-12 text-center animate-fade-in">
-                <div className="relative mb-10">
-                  <CheckCircle2 size={100} className="text-emerald-500 drop-shadow-[0_0_35px_rgba(16,185,129,0.7)]" />
-                  <div className="absolute inset-0 border-2 border-emerald-500 rounded-full animate-ping opacity-10" />
-                </div>
+                <div className="relative mb-10"><CheckCircle2 size={100} className="text-emerald-500 drop-shadow-[0_0_35px_rgba(16,185,129,0.7)]" /><div className="absolute inset-0 border-2 border-emerald-500 rounded-full animate-ping opacity-10" /></div>
                 <h2 className="text-6xl font-black mb-4 tracking-tighter text-white">Deep Work Success</h2>
                 <p className="text-zinc-500 mb-12 text-lg max-w-lg">You maintained intentional focus for this session. Your progress and notes have been preserved.</p>
                 <div className="flex gap-6">
                   <button onClick={() => { setVideoFinished(false); playerInstance?.playVideo(); }} className="px-12 py-5 bg-white/5 text-white rounded-full font-bold hover:bg-white/10 transition-all active:scale-95 border border-white/10 uppercase tracking-widest text-[11px]"><RotateCcw size={18} className="inline mr-2" /> Resume Flow</button>
-                  <button onClick={() => { setIsGateOpen(false); setUrlInput(''); setIsFocusing(false); setIsCinemaMode(false); }} className="px-12 py-5 bg-primary text-white rounded-full font-bold shadow-[0_0_40px_rgba(225,0,255,0.5)] hover:bg-primaryHover transition-all active:scale-95 uppercase tracking-widest text-[11px]">End Workspace</button>
+                  <button onClick={() => { setIsGateOpen(false); setUrlInput(''); setIsFocusing(false); setIsCinemaMode(false); setActiveQueueId(null); }} className="px-12 py-5 bg-primary text-white rounded-full font-bold shadow-[0_0_40px_rgba(225,0,255,0.5)] hover:bg-primaryHover transition-all active:scale-95 uppercase tracking-widest text-[11px]">End Workspace</button>
                 </div>
               </div>
             )}
 
             {!activeVideoId && (
               <div className="text-center p-12 animate-fade-in flex flex-col items-center">
-                {/* Center Branding - Strict Alignment */}
                 <WorkspaceLogo src="/favicon-96x96.png" fallback={FALLBACK_CENTER_LOGO} className="w-56 h-56 mx-auto mb-10 animate-glow-pulse object-contain" />
                 <h2 className="text-4xl font-black mb-4 tracking-tight text-white">Focus flow. AI guided.</h2>
                 <p className="text-zinc-500 text-lg max-w-md mx-auto leading-relaxed">Passive consumption is the end of growth. State your intention and dive into deep learning.</p>
@@ -545,8 +601,9 @@ function App() {
                 currentTitle={currentVideo?.title || ''} 
                 notes={currentVideo?.notes || ''} 
                 onNotesChange={t => { 
-                  setCurrentVideo(p => p ? {...p, notes: t} : null); 
-                  setHistory(old => old.map(h => h.id === currentVideo?.id ? {...h, notes: t} : h)); 
+                   const caps = extractChaptersFromText(t);
+                   setCurrentVideo(p => p ? {...p, notes: t, chapters: caps.length > 0 ? caps : p.chapters} : null); 
+                   setHistory(old => old.map(h => h.id === currentVideo?.id ? {...h, notes: t, chapters: caps.length > 0 ? caps : h.chapters} : h)); 
                 }} 
               />
             </div>

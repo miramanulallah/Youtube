@@ -1,12 +1,13 @@
 
 import React, { useState } from 'react';
 import { VideoHistoryItem, SidebarView, Playlist } from '../types';
-import { Trash2, Download, Upload, FileJson, Pencil, User, MoreVertical, Clock, History, ListMusic, Plus, X } from 'lucide-react';
+import { Trash2, Download, Upload, FileJson, Pencil, User, MoreVertical, Clock, History, ListMusic, Plus, X, ListOrdered } from 'lucide-react';
 
 interface HistoryPanelProps {
   history: VideoHistoryItem[];
   watchLater: VideoHistoryItem[];
   playlists: Playlist[];
+  queues: Playlist[];
   currentView: SidebarView;
   onViewChange: (view: SidebarView) => void;
   onSelect: (item: VideoHistoryItem) => void;
@@ -14,6 +15,7 @@ interface HistoryPanelProps {
   onRename: (id: string, newTitle: string, isWatchLater: boolean) => void;
   onCreatePlaylist: (name: string) => void;
   onDeletePlaylist: (id: string) => void;
+  onDeleteQueue: (id: string) => void;
   onExport: () => void;
   onImport: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }
@@ -26,8 +28,8 @@ const extractYoutubeId = (url: string): string | null => {
 };
 
 export const HistoryPanel: React.FC<HistoryPanelProps> = ({ 
-  history, watchLater, playlists, currentView, onViewChange, onSelect, onDelete, onRename,
-  onCreatePlaylist, onDeletePlaylist, onExport, onImport 
+  history, watchLater, playlists, queues, currentView, onViewChange, onSelect, onDelete, onRename,
+  onCreatePlaylist, onDeletePlaylist, onDeleteQueue, onExport, onImport 
 }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
@@ -38,19 +40,22 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({
 
   const isWatchLaterView = currentView === SidebarView.WATCH_LATER;
   const isHistoryView = currentView === SidebarView.HISTORY;
+  const isQueueView = currentView === SidebarView.QUEUE;
+  const isPlaylistsView = currentView === SidebarView.PLAYLISTS;
   
   let items: VideoHistoryItem[] = [];
   if (isHistoryView) {
     items = history;
   } else if (isWatchLaterView) {
+    items = watchLater;
+  } else if (isQueueView || isPlaylistsView) {
     if (selectedPlaylistId) {
-      const playlist = playlists.find(p => p.id === selectedPlaylistId);
+      const activePlaylists = isQueueView ? queues : playlists;
+      const playlist = activePlaylists.find(p => p.id === selectedPlaylistId);
       if (playlist) {
         const combined = [...history, ...watchLater];
         items = playlist.videoIds.map(vidId => combined.find(v => extractYoutubeId(v.url) === vidId)).filter(Boolean) as VideoHistoryItem[];
       }
-    } else {
-      items = watchLater;
     }
   }
 
@@ -66,19 +71,35 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({
     if (e.key === 'Escape') setEditingId(null);
   };
 
+  const renderViewTitle = () => {
+    if (selectedPlaylistId) {
+      const p = [...playlists, ...queues].find(x => x.id === selectedPlaylistId);
+      return p?.name || 'Playlist';
+    }
+    switch(currentView) {
+      case SidebarView.HISTORY: return 'History';
+      case SidebarView.WATCH_LATER: return 'Watch Later';
+      case SidebarView.QUEUE: return 'Queue';
+      case SidebarView.PLAYLISTS: return 'Playlists';
+      default: return 'Workspace';
+    }
+  };
+
   return (
     <div className="flex flex-col h-full bg-[#0f0f0f] rounded-xl border border-white/5 overflow-hidden">
       <div className="p-4 border-b border-white/5 flex justify-between items-center bg-white/5 shrink-0">
         <div className="flex items-center gap-2">
           <h2 className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
-            {selectedPlaylistId ? playlists.find(p => p.id === selectedPlaylistId)?.name : (isWatchLaterView ? 'Watch Later' : 'History')}
+            {renderViewTitle()}
           </h2>
           <div className="relative">
             <button onClick={() => setShowMenu(!showMenu)} className="p-1 hover:bg-white/10 rounded-md text-zinc-500 transition-colors"><MoreVertical size={14} /></button>
             {showMenu && (
               <div className="absolute left-0 mt-2 w-48 bg-[#181818] border border-white/10 rounded-xl shadow-2xl py-1 z-[200] animate-fade-in">
-                <button onClick={() => { onViewChange(SidebarView.HISTORY); setSelectedPlaylistId(null); setShowMenu(false); }} className={`w-full text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider flex items-center gap-2 hover:bg-white/5 ${isHistoryView && !selectedPlaylistId ? 'text-primary' : 'text-zinc-400'}`}><History size={14} /> History</button>
-                <button onClick={() => { onViewChange(SidebarView.WATCH_LATER); setSelectedPlaylistId(null); setShowMenu(false); }} className={`w-full text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider flex items-center gap-2 hover:bg-white/5 ${isWatchLaterView && !selectedPlaylistId ? 'text-primary' : 'text-zinc-400'}`}><Clock size={14} /> Watch Later</button>
+                <button onClick={() => { onViewChange(SidebarView.HISTORY); setSelectedPlaylistId(null); setShowMenu(false); }} className={`w-full text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider flex items-center gap-2 hover:bg-white/5 ${isHistoryView ? 'text-primary' : 'text-zinc-400'}`}><History size={14} /> History</button>
+                <button onClick={() => { onViewChange(SidebarView.WATCH_LATER); setSelectedPlaylistId(null); setShowMenu(false); }} className={`w-full text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider flex items-center gap-2 hover:bg-white/5 ${isWatchLaterView ? 'text-primary' : 'text-zinc-400'}`}><Clock size={14} /> Watch Later</button>
+                <button onClick={() => { onViewChange(SidebarView.QUEUE); setSelectedPlaylistId(null); setShowMenu(false); }} className={`w-full text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider flex items-center gap-2 hover:bg-white/5 ${isQueueView ? 'text-primary' : 'text-zinc-400'}`}><ListOrdered size={14} /> Queue</button>
+                <button onClick={() => { onViewChange(SidebarView.PLAYLISTS); setSelectedPlaylistId(null); setShowMenu(false); }} className={`w-full text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider flex items-center gap-2 hover:bg-white/5 ${isPlaylistsView ? 'text-primary' : 'text-zinc-400'}`}><ListMusic size={14} /> Playlists</button>
               </div>
             )}
           </div>
@@ -90,11 +111,16 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-        {isWatchLaterView && !selectedPlaylistId && (
+        {((isPlaylistsView || isQueueView) && !selectedPlaylistId) && (
           <div className="mb-6 space-y-3 shrink-0">
             <div className="flex items-center justify-between px-1">
-              <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest flex items-center gap-2"><ListMusic size={12} className="text-primary" /> Playlists</span>
-              <button onClick={() => setIsCreatingPlaylist(!isCreatingPlaylist)} className="p-1 bg-white/5 hover:bg-primary/20 rounded-md text-zinc-400 hover:text-primary transition-all"><Plus size={14} /></button>
+              <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest flex items-center gap-2">
+                {isQueueView ? <ListOrdered size={12} className="text-primary" /> : <ListMusic size={12} className="text-primary" />} 
+                {isQueueView ? 'Queue Lists' : 'Playlists'}
+              </span>
+              {!isQueueView && (
+                <button onClick={() => setIsCreatingPlaylist(!isCreatingPlaylist)} className="p-1 bg-white/5 hover:bg-primary/20 rounded-md text-zinc-400 hover:text-primary transition-all"><Plus size={14} /></button>
+              )}
             </div>
             
             {isCreatingPlaylist && (
@@ -105,14 +131,16 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({
             )}
 
             <div className="grid grid-cols-1 gap-2">
-              {playlists.map(p => (
+              {(isQueueView ? queues : playlists).map(p => (
                 <div key={p.id} onClick={() => setSelectedPlaylistId(p.id)} className="group flex items-center gap-3 bg-white/5 border border-white/5 p-3 rounded-xl hover:border-primary/20 transition-all cursor-pointer">
-                  <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-all"><ListMusic size={20} /></div>
+                  <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-all">
+                    {isQueueView ? <ListOrdered size={20} /> : <ListMusic size={20} />}
+                  </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-[11px] font-bold text-zinc-200 truncate">{p.name}</div>
                     <div className="text-[9px] text-zinc-500 uppercase">{p.videoIds.length} videos</div>
                   </div>
-                  <button onClick={(e) => { e.stopPropagation(); onDeletePlaylist(p.id); }} className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-500/10 text-zinc-500 hover:text-red-500 transition-all"><Trash2 size={12} /></button>
+                  <button onClick={(e) => { e.stopPropagation(); isQueueView ? onDeleteQueue(p.id) : onDeletePlaylist(p.id); }} className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-500/10 text-zinc-500 hover:text-red-500 transition-all"><Trash2 size={12} /></button>
                 </div>
               ))}
             </div>
@@ -120,11 +148,11 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({
         )}
 
         {selectedPlaylistId && (
-          <button onClick={() => setSelectedPlaylistId(null)} className="text-[10px] font-bold text-primary mb-4 hover:underline block shrink-0">← Back to Collections</button>
+          <button onClick={() => setSelectedPlaylistId(null)} className="text-[10px] font-bold text-primary mb-4 hover:underline block shrink-0">← Back to collections</button>
         )}
 
         <div className="space-y-3">
-          {items.length === 0 ? (
+          {(!isPlaylistsView && !isQueueView || selectedPlaylistId) && items.length === 0 ? (
             <div className="text-center text-zinc-700 py-10"><FileJson className="mx-auto mb-2 opacity-10" size={32} /><p className="text-[10px] font-bold uppercase tracking-widest">Empty Workspace</p></div>
           ) : items.map((item) => (
             <div key={item.id} className={`group relative bg-white/[0.02] hover:bg-white/[0.04] border rounded-xl overflow-hidden transition-all ${editingId === item.id ? 'border-primary ring-1 ring-primary/20' : 'border-white/5'}`}>
