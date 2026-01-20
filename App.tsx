@@ -3,10 +3,10 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { HistoryPanel } from './components/HistoryPanel';
 import { AIStudio } from './components/AIStudio';
 import { CustomControls } from './components/CustomControls';
-import { VideoHistoryItem, SidebarView, Playlist, Chapter } from './types';
+import { VideoHistoryItem, SidebarView, Playlist } from './types';
 import { evaluateIntent } from './services/geminiService';
 import { 
-  Loader2, BrainCircuit, Zap, CheckCircle2, RotateCcw
+  Loader2, BrainCircuit, Zap, CheckCircle2, RotateCcw, Plus, Clock, ListOrdered
 } from 'lucide-react';
 
 const LOCAL_STORAGE_KEY = 'yt_workspace_history';
@@ -70,15 +70,13 @@ function App() {
   const [availableRates, setAvailableRates] = useState<number[]>([1]);
   const [availableQualities, setAvailableQualities] = useState<string[]>(['auto']);
   const [captionsEnabled, setCaptionsEnabled] = useState(false);
-  const [controlsVisible, setControlsVisible] = useState(false);
-  const controlsTimeoutRef = useRef<number | null>(null);
 
   const seekForward = useCallback(() => {
     if (playerRef.current) {
       isSeekingRef.current = true;
       const cur = playerRef.current.getCurrentTime();
       playerRef.current.seekTo(cur + 10, true);
-      setTimeout(() => { isSeekingRef.current = false; }, 1000);
+      setTimeout(() => { isSeekingRef.current = false; }, 800);
     }
   }, []);
 
@@ -87,7 +85,7 @@ function App() {
       isSeekingRef.current = true;
       const cur = playerRef.current.getCurrentTime();
       playerRef.current.seekTo(cur - 10, true);
-      setTimeout(() => { isSeekingRef.current = false; }, 1000);
+      setTimeout(() => { isSeekingRef.current = false; }, 800);
     }
   }, []);
 
@@ -149,7 +147,7 @@ function App() {
       interval = setInterval(() => {
         const c = playerRef.current.getCurrentTime();
         const t = playerRef.current.getDuration();
-        if (t > 0) {
+        if (t > 0 && !isSeekingRef.current) {
           setPlayed(c / t);
           setDuration(t);
         }
@@ -170,12 +168,11 @@ function App() {
 
   const onPlayerStateChange = useCallback((e: any) => {
     const YT = (window as any).YT;
-    if (e.data === YT.PlayerState.ENDED) {
-      if (!isSeekingRef.current) {
-        setVideoFinished(true); 
-        setIsFocusing(false); 
-        setIsPlaying(false);
-      }
+    // Only finish if not seeking and state is truly ENDED
+    if (e.data === YT.PlayerState.ENDED && !isSeekingRef.current) {
+      setVideoFinished(true); 
+      setIsFocusing(false); 
+      setIsPlaying(false);
     } else if (e.data === YT.PlayerState.PLAYING) {
       setVideoFinished(false); 
       setIsFocusing(true); 
@@ -249,6 +246,26 @@ function App() {
   const isProtocolActive = activeVideoId && !isGateOpen;
   const showHeader = !isCinemaMode && !isProtocolActive && !isGateOpen;
 
+  const handleAddToWatchLater = () => {
+    const vidId = extractYoutubeId(urlInput);
+    if (!vidId) return;
+    const newItem: VideoHistoryItem = {
+      id: crypto.randomUUID(),
+      url: urlInput,
+      title: 'Saved from Protocol',
+      thumbnailUrl: fetchThumbnail(vidId),
+      lastPlayed: Date.now(),
+      progress: 0,
+      duration: 0,
+      completed: false,
+      notes: '',
+      category: 'Saved',
+      chapters: []
+    };
+    setWatchLater(prev => [newItem, ...prev]);
+    alert("Added to Watch Later.");
+  };
+
   return (
     <div ref={containerRef} className="h-screen w-screen bg-black text-[#f1f1f1] flex overflow-hidden font-sans select-none">
       {!isCinemaMode && (
@@ -303,7 +320,6 @@ function App() {
                 <span className="text-[8px] font-black text-primary uppercase tracking-[0.2em]">WORKSPACE</span>
               </div>
             </div>
-            <div className="flex-1 max-w-3xl flex items-center justify-end gap-3 px-4" />
           </header>
         )}
 
@@ -322,25 +338,31 @@ function App() {
                     placeholder="Why are you watching this? State your learning objective..." 
                     className="w-full bg-[#181818] border border-white/10 rounded-2xl p-8 text-lg text-zinc-300 focus:border-primary outline-none min-h-[180px] resize-none transition-all shadow-2xl" 
                   />
-                  <div className="flex gap-6 justify-center max-w-lg mx-auto">
-                    <button 
-                      type="button" 
-                      onClick={() => { const id = extractYoutubeId(urlInput); if(id) startSession(id, "Direct Session"); }} 
-                      className="flex-1 py-5 bg-zinc-800/50 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded-full font-bold uppercase text-[11px] tracking-[0.2em] transition-all border border-white/5 active:scale-95"
-                    >
-                      Skip Analysis
-                    </button>
-                    <button 
-                      onClick={async (e) => {
-                        e.preventDefault(); if (intentInput.length < 2) return; setIsEvaluating(true);
-                        const result = await evaluateIntent(urlInput, intentInput); setIsEvaluating(false);
-                        startSession(extractYoutubeId(urlInput)!, result.category, intentInput);
-                      }} 
-                      disabled={isEvaluating || !intentInput.trim()} 
-                      className="flex-[1.5] py-5 bg-zinc-300 hover:bg-zinc-100 text-black rounded-full font-bold uppercase text-[11px] tracking-[0.2em] flex items-center justify-center gap-3 transition-all active:scale-95 shadow-[0_0_40px_rgba(255,255,255,0.1)] disabled:opacity-50"
-                    >
-                      {isEvaluating ? <Loader2 className="animate-spin" /> : <BrainCircuit size={20} />} Verify Intent
-                    </button>
+                  <div className="space-y-6">
+                    <div className="flex gap-6 justify-center max-w-lg mx-auto">
+                      <button 
+                        type="button" 
+                        onClick={() => { const id = extractYoutubeId(urlInput); if(id) startSession(id, "Quick Session"); }} 
+                        className="flex-1 py-5 bg-zinc-800 text-zinc-400 hover:text-white rounded-full font-bold uppercase text-[11px] tracking-[0.2em] transition-all border border-white/5 active:scale-95"
+                      >
+                        Skip Analysis
+                      </button>
+                      <button 
+                        onClick={async (e) => {
+                          e.preventDefault(); if (intentInput.length < 2) return; setIsEvaluating(true);
+                          const result = await evaluateIntent(urlInput, intentInput); setIsEvaluating(false);
+                          startSession(extractYoutubeId(urlInput)!, result.category, intentInput);
+                        }} 
+                        disabled={isEvaluating || !intentInput.trim()} 
+                        className="flex-[1.5] py-5 bg-[#d4d4d8] hover:bg-white text-black rounded-full font-bold uppercase text-[11px] tracking-[0.2em] flex items-center justify-center gap-3 transition-all active:scale-95 shadow-[0_0_40px_rgba(255,255,255,0.1)] disabled:opacity-50"
+                      >
+                        {isEvaluating ? <Loader2 className="animate-spin" /> : <BrainCircuit size={20} />} Verify Intent
+                      </button>
+                    </div>
+                    <div className="flex gap-4 justify-center">
+                       <button onClick={handleAddToWatchLater} className="flex items-center gap-2 px-8 py-4 bg-[#181818] border border-white/10 rounded-full text-[11px] font-black text-zinc-400 hover:text-white hover:bg-zinc-800 uppercase transition-all active:scale-95 shadow-lg"><Clock size={16} /> Watch Later</button>
+                       <button onClick={() => setSidebarView(SidebarView.QUEUE)} className="flex items-center gap-2 px-8 py-4 bg-[#181818] border border-white/10 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all active:scale-95 shadow-lg"><Plus size={20} /></button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -353,16 +375,34 @@ function App() {
                 chapters={currentVideo?.chapters || []}
                 playbackRate={playbackRate} quality={quality} availableRates={availableRates} availableQualities={availableQualities}
                 captionsEnabled={captionsEnabled} onPlayPause={togglePlay}
-                onSeek={e => { const v = parseFloat(e.target.value); setPlayed(v); playerRef.current?.seekTo(v * duration, true); }}
+                onSeek={e => { 
+                   const v = parseFloat(e.target.value); 
+                   setPlayed(v); 
+                   isSeekingRef.current = true;
+                   playerRef.current?.seekTo(v * duration, true); 
+                   setTimeout(() => { isSeekingRef.current = false; }, 800);
+                }}
                 onMute={() => { if (isMuted) { playerRef.current?.unMute(); setIsMuted(false); } else { playerRef.current?.mute(); setIsMuted(true); } }}
                 onRewind={seekBackward} onFastForward={seekForward} onSkipNext={() => {}} onSkipPrev={() => {}}
-                onToggleFullscreen={toggleFullscreen} onAddToList={() => {}} onAddToQueue={() => {}}
+                onToggleFullscreen={toggleFullscreen} 
+                onAddToList={() => {}} // Popups handled internally in CustomControls now
+                onAddToQueue={() => {}} // Popups handled internally in CustomControls now
                 onSetRate={r => { playerRef.current?.setPlaybackRate(r); setPlaybackRate(r); }}
                 onSetQuality={q => { playerRef.current?.setPlaybackQuality(q); setQuality(q); }}
                 onToggleCaptions={() => { setCaptionsEnabled(!captionsEnabled); }}
                 onToggleCinema={() => setIsCinemaMode(!isCinemaMode)}
                 isCinemaMode={isCinemaMode}
-                visible={controlsVisible || !isPlaying}
+                visible={true}
+                playlists={playlists}
+                queues={queues}
+                onAddToExistingPlaylist={(pid) => {
+                  const id = extractYoutubeId(currentVideo?.url || '');
+                  if(id) setPlaylists(old => old.map(p => p.id === pid ? {...p, videoIds: [...p.videoIds, id]} : p));
+                }}
+                onAddToExistingQueue={(qid, externalUrl) => {
+                   const id = externalUrl ? extractYoutubeId(externalUrl) : extractYoutubeId(currentVideo?.url || '');
+                   if(id) setQueues(old => old.map(q => q.id === qid ? {...q, videoIds: [...q.videoIds, id]} : q));
+                }}
               />
             </div>
 
