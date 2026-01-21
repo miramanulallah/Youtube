@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Play, Pause, Volume2, VolumeX, Maximize, SkipBack, SkipForward, Plus, ListPlus, Clock, ListOrdered } from 'lucide-react';
 import { Chapter } from '../types';

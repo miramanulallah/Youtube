@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { generateStudyAid, quickChat, transcribeAudio } from '../services/geminiService';
 import { Sparkles, BookOpen, ScrollText, Loader2, Target, Mic, Send, Bot, User } from 'lucide-react';

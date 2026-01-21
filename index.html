@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -17,7 +16,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     <script src="https://www.youtube.com/iframe_api"></script>
     <script>
       tailwind.config = {
@@ -40,6 +39,9 @@
       }
     </script>
     <style>
+      html {
+        font-size: 14px; /* Simulates the 80% DPI look user requested */
+      }
       body {
         background-color: #0f0f0f;
         color: #f1f1f1;
@@ -76,7 +78,6 @@
       .animate-fade-in { animation: fade-in 0.4s ease-out forwards; }
       .animate-glow-pulse { animation: glow-pulse 3s infinite ease-in-out; }
 
-      /* Progress Bar Custom Styles */
       .progress-range::-webkit-slider-thumb {
         -webkit-appearance: none;
         appearance: none;

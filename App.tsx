@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { HistoryPanel } from './components/HistoryPanel';
 import { AIStudio } from './components/AIStudio';
@@ -59,6 +58,7 @@ function App() {
   const [showPlaylistPicker, setShowPlaylistPicker] = useState(false);
   const [pickerMode, setPickerMode] = useState<'playlist' | 'queue'>('playlist');
   const [isRecordingIntent, setIsRecordingIntent] = useState(false);
+  const [pickerUrlInput, setPickerUrlInput] = useState('');
   
   const containerRef = useRef<HTMLDivElement>(null);
   const playerContainerRef = useRef<HTMLDivElement>(null);
@@ -75,10 +75,8 @@ function App() {
   const [controlsVisible, setControlsVisible] = useState(false);
   const controlsTimeoutRef = useRef<number | null>(null);
 
-  // Helper: Extract Chapters from text (Notes or Metadata)
   const extractChaptersFromText = (text: string): Chapter[] => {
     const chapters: Chapter[] = [];
-    // Matches patterns like 0:00, 1:30, 10:25, 1:20:30 followed by some text
     const regex = /(?:^|\n)(?:(\d+):)?(\d+):(\d+)\s+(.+)/g;
     let match;
     while ((match = regex.exec(text)) !== null) {
@@ -247,7 +245,18 @@ function App() {
         playerContainerRef.current.appendChild(div);
         playerInstance = new (window as any).YT.Player('yt-player-internal', {
           height: '100%', width: '100%', videoId,
-          playerVars: { autoplay: 1, controls: 0, modestbranding: 1, rel: 0, showinfo: 0, iv_load_policy: 3, disablekb: 1, fs: 0, start: Math.floor(startAt) },
+          playerVars: { 
+            autoplay: 1, 
+            controls: 0, 
+            modestbranding: 1, 
+            rel: 0, 
+            showinfo: 0, 
+            iv_load_policy: 3, 
+            disablekb: 1, 
+            fs: 0, 
+            start: Math.floor(startAt),
+            origin: window.location.origin
+          },
           events: { onReady: onPlayerReady, onStateChange: onPlayerStateChange }
         });
       }
@@ -338,6 +347,26 @@ function App() {
     setTimeout(() => loadPlayer(extractYoutubeId(i.url)!, i.progress), 200); 
   };
 
+  const ensureVideoStub = (vidId: string) => {
+    const combined = [...history, ...watchLater];
+    if (!combined.some(v => extractYoutubeId(v.url) === vidId)) {
+      const newItem: VideoHistoryItem = {
+        id: crypto.randomUUID(),
+        url: `https://www.youtube.com/watch?v=${vidId}`,
+        title: 'Unknown Video (Updating...)',
+        thumbnailUrl: fetchThumbnail(vidId),
+        lastPlayed: Date.now(),
+        progress: 0,
+        duration: 0,
+        completed: false,
+        notes: '',
+        category: 'External Link',
+        chapters: []
+      };
+      setHistory(prev => [newItem, ...prev]);
+    }
+  };
+
   const handleSaveWatchLater = () => {
     const id = extractYoutubeId(urlInput) || (currentVideo ? extractYoutubeId(currentVideo.url) : null);
     if (!id) return;
@@ -356,27 +385,41 @@ function App() {
         chapters: []
       }, ...prev]);
     }
+    
+    setUrlInput('');
+    setPickerUrlInput('');
     setShowPlaylistPicker(false);
+    setIsGateOpen(false);
+    setIntentInput('');
   };
 
   const handleSaveToPlaylist = (playlistId: string) => {
-    const vidId = extractYoutubeId(urlInput) || (currentVideo ? extractYoutubeId(currentVideo.url) : null);
+    const vidId = extractYoutubeId(pickerUrlInput) || extractYoutubeId(urlInput) || (currentVideo ? extractYoutubeId(currentVideo.url) : null);
     if (!vidId) return;
+    
+    // Ensure we have a placeholder for this video so it shows up in the UI
+    ensureVideoStub(vidId);
+
     if (pickerMode === 'queue') {
-      setQueues(prev => prev.map(q => (q.id === playlistId && !q.videoIds.includes(vidId)) ? { ...q, videoIds: [...q.videoIds, vidId] } : q));
+      setQueues(prev => prev.map(q => q.id === playlistId ? { ...q, videoIds: Array.from(new Set([...q.videoIds, vidId])) } : q));
     } else {
-      setPlaylists(prev => prev.map(p => (p.id === playlistId && !p.videoIds.includes(vidId)) ? { ...p, videoIds: [...p.videoIds, vidId] } : p));
+      setPlaylists(prev => prev.map(p => p.id === playlistId ? { ...p, videoIds: Array.from(new Set([...p.videoIds, vidId])) } : p));
     }
+    setPickerUrlInput('');
     setShowPlaylistPicker(false);
   };
 
   const handleCreateAndAddToQueue = () => {
-    const vidId = extractYoutubeId(urlInput) || (currentVideo ? extractYoutubeId(currentVideo.url) : null);
+    const vidId = extractYoutubeId(pickerUrlInput) || extractYoutubeId(urlInput) || (currentVideo ? extractYoutubeId(currentVideo.url) : null);
     if (!vidId) return;
+
+    ensureVideoStub(vidId);
+
     const name = currentVideo?.title && currentVideo.title !== 'Loading Title...' ? currentVideo.title : 'New Queue Session';
     const newQueue: Playlist = { id: crypto.randomUUID(), name, videoIds: [vidId] };
     setQueues(prev => [...prev, newQueue]);
     setActiveQueueId(newQueue.id);
+    setPickerUrlInput('');
     setShowPlaylistPicker(false);
   };
 
@@ -419,9 +462,14 @@ function App() {
                 }}
                 onDelete={(id, wl) => wl ? setWatchLater(p => p.filter(i=>i.id!==id)) : setHistory(p => p.filter(i=>i.id!==id))}
                 onRename={(id, t, wl) => wl ? setWatchLater(p => p.map(h=>h.id===id?{...h,title:t}:h)) : setHistory(p => p.map(h=>h.id===id?{...h,title:t}:h))}
+                onRenamePlaylist={(id, name) => setPlaylists(prev => prev.map(p => p.id === id ? { ...p, name } : p))}
+                onRenameQueue={(id, name) => setQueues(prev => prev.map(q => q.id === id ? { ...q, name } : q))}
                 onCreatePlaylist={(name) => setPlaylists(prev => [...prev, { id: crypto.randomUUID(), name, videoIds: [] }])}
                 onDeletePlaylist={(id) => setPlaylists(prev => prev.filter(p => p.id !== id))}
-                onDeleteQueue={(id) => setQueues(prev => prev.filter(p => p.id !== id))}
+                onDeleteQueue={(id) => {
+                   setQueues(prev => prev.filter(p => p.id !== id));
+                   if (activeQueueId === id) setActiveQueueId(null);
+                }}
                 onExport={() => { const b = new Blob([JSON.stringify({history,watchLater,playlists,queues})],{type:'application/json'}); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href=u; a.download='workspace.json'; a.click(); }}
                 onImport={e => { const f = e.target.files?.[0]; if(f){const r=new FileReader(); r.onload=re=>{try{const i=JSON.parse(re.target?.result as string); if(i.history) setHistory(i.history); if(i.watchLater) setWatchLater(i.watchLater); if(i.playlists) setPlaylists(i.playlists); if(i.queues) setQueues(i.queues);}catch(err){}};r.readAsText(f);}}}
               />
@@ -456,31 +504,82 @@ function App() {
 
         {showPlaylistPicker && (
           <div className="fixed inset-0 z-[500] flex items-center justify-center bg-black/80 backdrop-blur-md">
-            <div className="w-80 bg-[#121212] border border-white/10 rounded-2xl shadow-2xl p-4 animate-fade-in relative">
-              <div className="flex justify-between items-center mb-4 border-b border-white/5 pb-2">
-                <h3 className="text-xs font-bold uppercase tracking-widest text-primary">{pickerMode === 'queue' ? 'Queue Management' : 'Target List'}</h3>
-                <button onClick={() => setShowPlaylistPicker(false)} className="text-zinc-500 hover:text-white transition-colors"><X size={16} /></button>
+            <div className="w-[420px] bg-[#121212] border border-white/10 rounded-3xl shadow-2xl p-6 animate-fade-in relative">
+              <div className="flex justify-between items-center mb-6 border-b border-white/5 pb-4">
+                <h3 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-3">
+                  <ListOrdered size={18} />
+                  {pickerMode === 'queue' ? 'Queue Management' : 'Target List'}
+                </h3>
+                <button onClick={() => { setShowPlaylistPicker(false); setPickerUrlInput(''); }} className="text-zinc-500 hover:text-white transition-colors bg-white/5 p-1.5 rounded-full"><X size={18} /></button>
               </div>
-              <div className="max-h-60 overflow-y-auto custom-scrollbar space-y-1">
+
+              <div className="mb-6">
+                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-2 px-1">Video Link to Add</label>
+                <div className="relative">
+                  <input 
+                    type="text" 
+                    value={pickerUrlInput} 
+                    onChange={e => setPickerUrlInput(e.target.value)} 
+                    placeholder="Paste YouTube link here..." 
+                    className="w-full bg-[#181818] border border-white/10 text-white px-4 py-3 rounded-xl text-sm outline-none focus:border-primary transition-all shadow-inner placeholder:text-zinc-700" 
+                  />
+                  {pickerUrlInput && (
+                    <button 
+                      onClick={() => setPickerUrlInput('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="max-h-64 overflow-y-auto custom-scrollbar space-y-2 pr-2">
                 {pickerMode === 'queue' ? (
                   <>
-                    <button onClick={handleCreateAndAddToQueue} className="w-full text-left px-3 py-3 text-xs text-primary hover:bg-white/10 rounded-lg transition-all flex items-center gap-2 mb-2 font-bold uppercase tracking-wider"><Plus size={14} /> Create New Queue</button>
+                    <button 
+                      onClick={handleCreateAndAddToQueue} 
+                      disabled={!extractYoutubeId(pickerUrlInput) && !extractYoutubeId(urlInput)}
+                      className="w-full text-left px-4 py-4 text-xs text-primary bg-primary/5 hover:bg-primary/10 border border-primary/20 rounded-xl transition-all flex items-center gap-3 font-black uppercase tracking-widest mb-4 disabled:opacity-30 disabled:cursor-not-allowed group"
+                    >
+                      <PlusSquare className="group-hover:scale-110 transition-transform" size={18} /> 
+                      Create New Queue Session
+                    </button>
+                    {queues.length === 0 && !pickerUrlInput && <p className="text-[10px] text-zinc-600 text-center py-4">No active queue sessions.</p>}
                     {queues.map(q => (
-                      <button key={q.id} onClick={() => handleSaveToPlaylist(q.id)} className="w-full text-left px-3 py-2.5 text-xs text-zinc-400 hover:bg-white/5 rounded-lg transition-all flex justify-between items-center">
-                        <span>{q.name}</span>
-                        <span className="text-[9px] text-zinc-600">({q.videoIds.length} videos)</span>
+                      <button 
+                        key={q.id} 
+                        onClick={() => handleSaveToPlaylist(q.id)} 
+                        className="w-full text-left px-5 py-3.5 text-xs text-zinc-400 bg-white/5 hover:bg-white/10 border border-transparent hover:border-white/10 rounded-xl transition-all flex justify-between items-center group"
+                      >
+                        <span className="font-bold text-zinc-200 group-hover:text-primary transition-colors">{q.name}</span>
+                        <span className="text-[10px] font-mono text-zinc-600">({q.videoIds.length} videos)</span>
                       </button>
                     ))}
                   </>
                 ) : (
                   <>
-                    <button onClick={handleSaveWatchLater} className="w-full text-left px-3 py-3 text-xs text-zinc-300 hover:bg-white/10 rounded-lg transition-all flex items-center gap-2 mb-2 font-bold uppercase tracking-wider"><Clock size={14} className="text-primary" /> Watch Later</button>
-                    {playlists.length === 0 ? <p className="text-[10px] text-zinc-600 text-center py-4">No custom lists found.</p> : playlists.map(p => (
-                      <button key={p.id} onClick={() => handleSaveToPlaylist(p.id)} className="w-full text-left px-3 py-2.5 text-xs text-zinc-400 hover:bg-white/5 rounded-lg transition-all flex justify-between items-center">
-                        <span>{p.name}</span>
-                        <span className="text-[9px] text-zinc-600">({p.videoIds.length})</span>
-                      </button>
-                    ))}
+                    <button 
+                      onClick={handleSaveWatchLater} 
+                      className="w-full text-left px-5 py-4 text-xs text-zinc-300 bg-white/5 hover:bg-white/10 border border-white/5 rounded-xl transition-all flex items-center gap-3 font-black uppercase tracking-widest mb-4 group"
+                    >
+                      <Clock size={18} className="text-primary group-hover:scale-110 transition-transform" /> 
+                      Watch Later
+                    </button>
+                    {playlists.length === 0 ? (
+                      <p className="text-[10px] text-zinc-600 text-center py-4 uppercase tracking-widest">No custom lists found.</p>
+                    ) : (
+                      playlists.map(p => (
+                        <button 
+                          key={p.id} 
+                          onClick={() => handleSaveToPlaylist(p.id)} 
+                          className="w-full text-left px-5 py-3.5 text-xs text-zinc-400 bg-white/5 hover:bg-white/10 border border-transparent hover:border-white/10 rounded-xl transition-all flex justify-between items-center group"
+                        >
+                          <span className="font-bold text-zinc-200 group-hover:text-primary transition-colors">{p.name}</span>
+                          <span className="text-[10px] font-mono text-zinc-600">({p.videoIds.length})</span>
+                        </button>
+                      ))
+                    )}
                   </>
                 )}
               </div>
@@ -601,9 +700,18 @@ function App() {
                 currentTitle={currentVideo?.title || ''} 
                 notes={currentVideo?.notes || ''} 
                 onNotesChange={t => { 
-                   const caps = extractChaptersFromText(t);
-                   setCurrentVideo(p => p ? {...p, notes: t, chapters: caps.length > 0 ? caps : p.chapters} : null); 
-                   setHistory(old => old.map(h => h.id === currentVideo?.id ? {...h, notes: t, chapters: caps.length > 0 ? caps : h.chapters} : h)); 
+                   const chaptersRegex = /(?:^|\n)(?:(\d+):)?(\d+):(\d+)\s+(.+)/g;
+                   const caps: Chapter[] = [];
+                   let match;
+                   while ((match = chaptersRegex.exec(t)) !== null) {
+                      const hours = match[1] ? parseInt(match[1]) : 0;
+                      const minutes = parseInt(match[2]);
+                      const seconds = parseInt(match[3]);
+                      const title = match[4].trim();
+                      caps.push({ title, time: (hours * 3600) + (minutes * 60) + seconds });
+                   }
+                   setCurrentVideo(p => p ? {...p, notes: t, chapters: caps.length > 0 ? caps.sort((a,b)=>a.time-b.time) : p.chapters} : null); 
+                   setHistory(old => old.map(h => h.id === currentVideo?.id ? {...h, notes: t, chapters: caps.length > 0 ? caps.sort((a,b)=>a.time-b.time) : h.chapters} : h)); 
                 }} 
               />
             </div>
